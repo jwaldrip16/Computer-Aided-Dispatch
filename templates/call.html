@@ -38,6 +38,22 @@
       </form>
       {% endif %}
       <p><b>Units:</b> {{ c.units or 'none yet' }}</p>
+      {% if me['role'] != 'unit' and c.status != 'closed' %}
+      <form method="post" action="{{ url_for('call_unit_status', call_id=c.id) }}" class="row unitStatusForm">
+        <select name="username" required>
+          <option value="">Unit...</option>
+          {% for u in unit_users %}<option value="{{ u.username }}">{{ u.username }}</option>{% endfor %}
+        </select>
+        <select name="status">
+          <option value="enroute">Enroute</option>
+          <option value="on_scene">On scene</option>
+          <option value="transporting">Transport</option>
+          <option value="clear">Clear</option>
+        </select>
+        <input name="reason" placeholder="Reason (for clear)">
+        <button type="submit">Set status</button>
+      </form>
+      {% endif %}
       {% if responses %}
       <p><b>Unit responses:</b><br>
       {% for r in responses %}

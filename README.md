@@ -73,6 +73,18 @@ Editing and deleting users
   to) and a Delete button that asks "Sure?" before it acts. You cannot delete
   your own account or the last admin.
 
+Dispatch can set unit statuses
+------------------------------
+- On the call page, dispatch can pick a unit and set Enroute, On scene,
+  Transport, or Clear (with an optional reason) for them, for when the unit
+  calls it in by radio instead of using the app. It saves a note on the call.
+
+Reset call numbers
+------------------
+- In Settings, admins can reset call numbering so the next call is #1. This
+  deletes every existing call and its notes, so use it to clear out training
+  calls before going live.
+
 Maps and address checking
 -------------------------
 - While you type an address on the New call page, suggestions appear under the box.

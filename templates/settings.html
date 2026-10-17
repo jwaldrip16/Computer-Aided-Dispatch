@@ -23,5 +23,21 @@
       placeholder="AIza..."></label>
     <button type="submit" class="primary">Save</button>
   </form>
+  <h2>Call numbers</h2>
+  <p class="muted">Resets call numbering so the next call is #1. Careful: it
+  deletes every existing call and its notes. Only admins can do this.</p>
+  <form method="post" action="{{ url_for('reset_calls') }}" id="resetCallsForm">
+    <button type="submit" class="del" id="resetCallsBtn">Reset call numbers</button>
+  </form>
 </div>
+<script>
+const rcBtn = document.getElementById('resetCallsBtn');
+rcBtn.addEventListener('click', e => {
+  if (!rcBtn.dataset.conf) {
+    e.preventDefault();
+    rcBtn.textContent = 'Sure? This deletes every call.';
+    rcBtn.dataset.conf = '1';
+  }
+});
+</script>
 {% endblock %}

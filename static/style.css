@@ -83,3 +83,6 @@ table.calls tr.flash, .card.flash { animation: flash 1.2s ease 5; }
 .respbar { flex-wrap: wrap; gap: 6px; margin-top: 6px; align-items: center; }
 .respbar .cur { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
 .reasonrow input { flex: 1; min-width: 160px; }
+
+.unitStatusForm { flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0; }
+.unitStatusForm select, .unitStatusForm input { max-width: 200px; }

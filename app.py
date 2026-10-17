@@ -366,6 +366,34 @@ def _load_call(call_id):
     return row
 
 
+@app.route("/call/<int:call_id>/unit-status", methods=["POST"])
+@staff_required
+def call_unit_status(call_id):
+    me = current_user()
+    c = _load_call(call_id)
+    username = (request.form.get("username") or "").strip()
+    status = request.form.get("status") or ""
+    reason = (request.form.get("reason") or "").strip() or None
+    if not username or status not in UNIT_CALL_STATUSES:
+        return ("Pick a unit and a status.", 400)
+    if not q("SELECT 1 FROM users WHERE username = %s AND role = 'unit'",
+             (username,), one=True):
+        return ("That unit does not exist.", 400)
+    if c["status"] == "closed":
+        return ("That call is already closed.", 400)
+    q("INSERT INTO unit_call_status (call_id, username, status, reason, lat, lng)"
+      " VALUES (%s,%s,%s,%s,NULL,NULL)", (call_id, username, status, reason))
+    label = {"enroute": "is enroute", "on_scene": "is on scene",
+             "transporting": "is transporting", "clear": "cleared"}[status]
+    q("INSERT INTO call_notes (call_id, author, text) VALUES (%s,%s,%s)",
+      (call_id, me["username"],
+       "Dispatch set %s: %s%s" % (username, label,
+                                  " (reason: %s)" % reason if reason else "")))
+    log_audit(me["username"], "dispatch_unit_status",
+              "call %s: %s %s" % (call_id, username, status))
+    return redirect(url_for("call_view", call_id=call_id))
+
+
 @app.route("/call/<int:call_id>")
 @login_required
 def call_view(call_id):
@@ -374,6 +402,8 @@ def call_view(call_id):
     notes = q("SELECT * FROM call_notes WHERE call_id = %s ORDER BY id",
               (call_id,))
     responses = unit_responses([call_id]).get(call_id, [])
+    unit_users = q("SELECT username FROM users WHERE role = 'unit'"
+                   " ORDER BY username")
     for n in notes:
         n["created_at"] = n["created_at"].isoformat()
     steps = q("SELECT * FROM sop_templates WHERE call_type = %s"
@@ -392,7 +422,7 @@ def call_view(call_id):
     for s in shares:
         s["url"] = "/share/" + s["token"]
     return render_template("call.html", me=me, c=call_dict(c), notes=notes,
-                           responses=responses,
+                           responses=responses, unit_users=unit_users,
                            checklist=checklist, shares=shares,
                            type_name=c["call_type"].capitalize())
 
@@ -481,6 +511,17 @@ def settings_page():
         fmt)
     return render_template("settings.html", me=me, fmt=fmt, example=example,
                            google_key=gk or "")
+
+
+@app.route("/settings/reset-calls", methods=["POST"])
+@admin_required
+def reset_calls():
+    me = current_user()
+    q("DELETE FROM calls")
+    q("SELECT setval('calls_id_seq', 1, false)")
+    log_audit(me["username"], "reset_call_numbers",
+              "all calls deleted, numbering restarted at 1")
+    return redirect(url_for("settings_page"))
 
 
 def get_google_key():
