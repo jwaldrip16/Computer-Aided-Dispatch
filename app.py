@@ -145,6 +145,8 @@ def init_db():
         schema = open(os.path.join(here, "schema.sql")).read()
         with get_db() as conn, conn.cursor() as cur:
             cur.execute(schema)
+            cur.execute("ALTER TABLE calls ADD COLUMN IF NOT EXISTS"
+                        " page_count INTEGER DEFAULT 0")
             cur.execute("SELECT count(*) AS n FROM sop_templates")
             if cur.fetchone()[0] == 0:
                 for ctype, steps in DEFAULT_SOPS.items():
@@ -886,8 +888,8 @@ def call_notify(call_id):
         if request.is_json:
             return jsonify(ok=True, pending=True)
         return redirect(url_for("call_view", call_id=call_id))
-    q("UPDATE calls SET notified_at = now(), status = 'dispatched' WHERE id = %s"
-      " AND notified_at IS NULL", (call_id,))
+    q("UPDATE calls SET notified_at = now(), status = 'dispatched',"
+      " page_count = COALESCE(page_count, 0) + 1 WHERE id = %s", (call_id,))
     log_audit(me["username"], "call_sent_to_units", "call %s" % call_id)
     if request.is_json:
         return jsonify(ok=True)
@@ -911,10 +913,19 @@ def call_note(call_id):
 @staff_required
 def call_units(call_id):
     me = current_user()
-    _load_call(call_id)
+    c = _load_call(call_id)
     units = (request.form.get("units") or "").strip()
     q("UPDATE calls SET units = %s WHERE id = %s", (units, call_id))
-    log_audit(me["username"], "units", "call %s units: %s" % (call_id, units))
+    if units and c["notified_at"] and c["status"] != "closed":
+        q("UPDATE calls SET page_count = COALESCE(page_count, 0) + 1"
+          " WHERE id = %s", (call_id,))
+        q("INSERT INTO call_notes (call_id, author, text) VALUES (%s,%s,%s)",
+          (call_id, me["username"],
+           "Units changed to %s; assigned units re-paged." % units))
+        log_audit(me["username"], "units", "call %s units: %s (re-paged)"
+                  % (call_id, units))
+    else:
+        log_audit(me["username"], "units", "call %s units: %s" % (call_id, units))
     return redirect(url_for("call_view", call_id=call_id))
 
 

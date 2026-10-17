@@ -47,6 +47,31 @@
       {% endif %}
       <p><b>Units:</b> {{ c.units or 'none yet' }}</p>
       {% if me['role'] != 'unit' and c.status != 'closed' %}
+      <div class="assignbox">
+        <button id="recBtn" class="btn" type="button">Recommend units by location</button>
+        <button id="nearestBtn" class="btn" type="button">Assign nearest</button>
+        <div id="recPanel"></div>
+        <form method="post" action="{{ url_for('call_units', call_id=c.id) }}" class="inline" id="unitsForm">
+          <label>Units assigned
+            <input name="units" id="unitsInput" value="{{ c.units or '' }}" placeholder="Engine 1, Medic 3, Unit 12...">
+          </label>
+          <button type="submit">Save units</button>
+        </form>
+        <p class="muted">Tap a unit name to add it, or type names in the box and press Save units.</p>
+        <div class="row chiprow">
+          {% for u in unit_users %}<button type="button" class="btn unitchip" data-name="{{ u.username }}">{{ u.username }}</button>{% endfor %}
+        </div>
+        {% if c.notified_at %}
+        <form method="post" action="{{ url_for('call_notify', call_id=c.id) }}" class="inline">
+          <button type="submit" class="btn primary">Re-page units (tone + voice again)</button>
+        </form>
+        <p class="muted">Re-page makes every unit on this call tone and hear the call again
+          on their phone. Use it after reassigning units or when someone missed the first page.</p>
+        {% endif %}
+        <p class="muted" id="recNote"></p>
+      </div>
+      {% endif %}
+      {% if me['role'] != 'unit' and c.status != 'closed' %}
       <form method="post" action="{{ url_for('call_unit_status', call_id=c.id) }}" class="row unitStatusForm">
         <select name="username" required>
           <option value="">Unit...</option>
@@ -79,16 +104,6 @@
       {% endif %}
     </div>
     <div>
-      <button id="recBtn" class="btn" type="button">Recommend units by location</button>
-      <button id="nearestBtn" class="btn" type="button">Assign nearest</button>
-      <div id="recPanel"></div>
-      <form method="post" action="{{ url_for('call_units', call_id=c.id) }}" class="inline" id="unitsForm">
-        <label>Units assigned
-          <input name="units" id="unitsInput" value="{{ c.units or '' }}" placeholder="Engine 1, Medic 3, Unit 12...">
-        </label>
-        <button type="submit">Save units</button>
-      </form>
-      <p class="muted" id="recNote"></p>
       <div class="statusbtns">
         {% for s in ['open','dispatched','closed'] %}
         <form method="post" action="{{ url_for('call_status', call_id=c.id) }}" class="inline">
@@ -224,6 +239,7 @@ editSug.addEventListener('click', e => {
 <script>
 (function () {
   const btn = document.getElementById('recBtn');
+  if (!btn) return;
   const nb = document.getElementById('nearestBtn');
   const panel = document.getElementById('recPanel');
   const note = document.getElementById('recNote');
@@ -273,6 +289,17 @@ editSug.addEventListener('click', e => {
     }
     const first = d.recs[0];
     document.getElementById('unitsInput').value = first.username;
+    document.getElementById('unitsForm').submit();
+  });
+  document.addEventListener('click', e => {
+    const b = e.target.closest('button.unitchip');
+    if (!b) return;
+    const input = document.getElementById('unitsInput');
+    if (!input) return;
+    const cur = input.value.trim();
+    const have = cur ? cur.split(',').map(s => s.trim()).filter(Boolean) : [];
+    if (have.indexOf(b.dataset.name) === -1) have.push(b.dataset.name);
+    input.value = have.join(', ');
     document.getElementById('unitsForm').submit();
   });
   panel.addEventListener('click', e => {

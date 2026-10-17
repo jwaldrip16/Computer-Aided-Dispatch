@@ -217,3 +217,12 @@ A unit phone only shows calls that match ALL of these. Check in this order:
    unit that only has police checked.
 4. The unit phone must be signed in. If the session ran out, the page goes back to the
    login screen; sign in again and re-arm the sound.
+
+## Re-paging units after a reassign
+
+Every unit assigned to a call tones and hears the call when dispatch first presses
+Send to unit phones. If dispatch later changes the units on the call (reassigns), the
+new unit hears the page only when someone presses **Re-page units (tone + voice
+again)** on the call page. Re-page makes every unit on the call tone and hear the call
+again, so it also works when someone missed the first page. Closed calls cannot be
+re-paged.

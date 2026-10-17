@@ -5,12 +5,18 @@ let firstLoad = true;
 const $ = id => document.getElementById(id);
 
 function speak(text) {
+  speakMany([text]);
+}
+
+function speakMany(texts) {
   if (!('speechSynthesis' in window)) return;
   try {
     speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.rate = 0.95;
-    speechSynthesis.speak(u);
+    for (const t of texts) {
+      const u = new SpeechSynthesisUtterance(t);
+      u.rate = 0.95;
+      speechSynthesis.speak(u);
+    }
   } catch (e) {}
 }
 
@@ -93,7 +99,7 @@ const TITLES = {police: 'Police', fire: 'Fire', medical: 'Medical', other: 'Call
 function callSpeech(c) {
   const parts = [];
   if (FMT.say_type) parts.push(TITLES[c.call_type] + ' call');
-  if (FMT.say_address) parts.push('Address: ' + (c.address || ''));
+  parts.push('Address: ' + (c.address == null ? '' : c.address));
   if (FMT.say_nature) parts.push('Nature: ' + (c.nature || ''));
   if (FMT.say_time) parts.push('Dispatched at ' +
     new Date(c.notified_at || c.created_at).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}));
@@ -122,12 +128,11 @@ function nowTime() {
 
 function speakAlert(c) {
   const s = callSpeech(c);
-  speak(s);
-  speak(s);
-  speak('The time is ' + nowTime() + '.');
+  const again = 'Address: ' + (c.address == null ? '' : c.address) + '.';
+  speakMany([s, again, 'The time is ' + nowTime() + '.']);
 }
 
-function esc(s) { return String(s ?? '').replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
 function escAttr(s) { return esc(s).replace(/'/g, '&#39;'); }
 function fmt(iso) { return iso ? new Date(iso).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''; }
 
@@ -196,8 +201,9 @@ async function poll() {
       '<li class="muted">None yet.</li>';
     const fresh = [];
     for (const c of d.active) {
-      if (!seen.has(c.id)) {
-        seen.add(c.id);
+      const key = c.id + ':' + (c.page_count || 0);
+      if (!seen.has(key)) {
+        seen.add(key);
         if (!firstLoad) {
           document.querySelectorAll('.row-' + c.id).forEach(x => x.classList.add('flash'));
           fresh.push(c);
@@ -218,14 +224,13 @@ document.addEventListener('click', e => {
   if (b) {
     const parts = [];
     if (FMT.say_type) parts.push(TITLES[b.dataset.type] + ' call');
-    if (FMT.say_address) parts.push('Address: ' + b.dataset.addr);
+    parts.push('Address: ' + b.dataset.addr);
     if (FMT.say_nature) parts.push('Nature: ' + b.dataset.nat);
     if (FMT.say_time) parts.push('Dispatched at ' +
       new Date(b.dataset.time).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}));
     const s = parts.join('. ') + '.';
-    speak(s);
-    speak(s);
-    speak('The time is ' + nowTime() + '.');
+    const again = 'Address: ' + b.dataset.addr + '.';
+    speakMany([s, again, 'The time is ' + nowTime() + '.']);
   }
 });
 

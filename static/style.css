@@ -86,3 +86,8 @@ table.calls tr.flash, .card.flash { animation: flash 1.2s ease 5; }
 
 .unitStatusForm { flex-wrap: wrap; gap: 6px; align-items: center; margin: 6px 0; }
 .unitStatusForm select, .unitStatusForm input { max-width: 200px; }
+
+/* one-tap unit buttons on the call page */
+.chiprow { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.chiprow .unitchip { font-size: 13px; padding: 4px 10px; }
+.assignbox { margin: 10px 0 14px; }
