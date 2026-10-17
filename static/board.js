@@ -60,7 +60,7 @@ function rowHtml(c) {
     `<td>${esc(c.units || '')}</td>` +
     `<td>${esc(c.dispatcher || '')}</td>` +
     `<td><a href="/call/${c.id}">Open</a> ` +
-    `<button class="btn read" data-id="${c.id}">Read</button> ` +
+    `<button class="btn read" data-id="${c.id}" data-addr="${escAttr(c.address || 'not given')}" data-nat="${escAttr(c.nature || 'not given')}">Read</button> ` +
     send + queueBtn + nearBtn + unitsCtl + clrBtn + (IS_ADMIN ? ` <button class="btn del" data-id="${c.id}">Delete</button>` : '') +
     `</td>` +
     `</tr>`;
