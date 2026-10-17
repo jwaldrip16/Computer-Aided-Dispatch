@@ -109,11 +109,22 @@ function alertCall(c) {
   const secs = toneFor(c.call_type, c.priority === 'emergency');
   if (secs) {
     VOICE_T = setTimeout(() => {
-      speak(callSpeech(c));
+      speakAlert(c);
       $('silenceBtn').disabled = true;
       ALERTING = false;
     }, secs * 1000);
   }
+}
+
+function nowTime() {
+  return new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+}
+
+function speakAlert(c) {
+  const s = callSpeech(c);
+  speak(s);
+  speak(s);
+  speak('The time is ' + nowTime() + '.');
 }
 
 function esc(s) { return String(s ?? '').replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
@@ -209,7 +220,10 @@ document.addEventListener('click', e => {
     if (FMT.say_nature) parts.push('Nature: ' + b.dataset.nat);
     if (FMT.say_time) parts.push('Dispatched at ' +
       new Date(b.dataset.time).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}));
-    speak(parts.join('. ') + '.');
+    const s = parts.join('. ') + '.';
+    speak(s);
+    speak(s);
+    speak('The time is ' + nowTime() + '.');
   }
 });
 

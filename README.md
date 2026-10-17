@@ -63,7 +63,15 @@ and voice alert plays.
   to, not exactly, road miles).
 - Tones differ by call type: police is a two-tone hi/lo, fire is fast beeps,
   medical is slow low beeps, other is the original two-tone. An emergency
-  priority call sounds one extra round.
+  priority call sounds one extra round. The spoken announcement plays twice,
+  then the voice says the time.
+
+Editing and deleting users
+--------------------------
+- On the Users page, every user has an Edit link (change the username, set a new
+  password, switch the role, and for units change which call types they respond
+  to) and a Delete button that asks "Sure?" before it acts. You cannot delete
+  your own account or the last admin.
 
 Maps and address checking
 -------------------------

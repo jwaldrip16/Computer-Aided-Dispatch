@@ -1016,6 +1016,67 @@ def users():
                                    " FROM users ORDER BY username"), error=error)
 
 
+@app.route("/user/<int:uid>/edit", methods=["GET", "POST"])
+@admin_required
+def user_edit(uid):
+    me = current_user()
+    u = q("SELECT * FROM users WHERE id = %s", (uid,), one=True)
+    if not u:
+        abort(404)
+    error = ""
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        role = request.form.get("role") or ""
+        password = request.form.get("password") or ""
+        utypes = ",".join(t for t in request.form.getlist("unit_types")
+                          if t in CALL_TYPES)
+        admins = q("SELECT count(*) AS n FROM users WHERE role = 'admin'",
+                   one=True)["n"]
+        if len(username) < 3:
+            error = "Username needs at least 3 characters."
+        elif role not in ("admin", "dispatcher", "unit"):
+            error = "Pick a real role."
+        elif username.lower() != u["username"].lower() and \
+                q("SELECT 1 FROM users WHERE lower(username) = lower(%s)"
+                  " AND id <> %s", (username, uid), one=True):
+            error = "That username is already used."
+        elif password and len(password) < 6:
+            error = "Password needs at least 6 characters."
+        elif (me["id"] == u["id"] and role != "admin" and admins <= 1):
+            error = "You are the only admin, so you cannot change your own role."
+        else:
+            sets = ["username = %s", "role = %s",
+                    "unit_types = %s" if role == "unit" else "unit_types = NULL"]
+            vals = [username, role] + ([utypes] if role == "unit" else [])
+            if password:
+                sets.append("pass_hash = %s")
+                vals.append(generate_password_hash(password))
+            vals.append(uid)
+            q("UPDATE users SET " + ", ".join(sets) + " WHERE id = %s", vals)
+            log_audit(me["username"], "user_edit",
+                      "user %s: now %s (%s)" % (uid, username, role))
+            return redirect(url_for("users"))
+    return render_template("user_edit.html", me=me, u=u, error=error)
+
+
+@app.route("/user/<int:uid>/delete", methods=["POST"])
+@admin_required
+def user_delete(uid):
+    me = current_user()
+    u = q("SELECT * FROM users WHERE id = %s", (uid,), one=True)
+    if not u:
+        abort(404)
+    if u["id"] == me["id"]:
+        return jsonify(ok=False, error="You cannot delete your own account here."), 400
+    if u["role"] == "admin" and \
+            q("SELECT count(*) AS n FROM users WHERE role = 'admin'",
+              one=True)["n"] <= 1:
+        return jsonify(ok=False, error="That is the only admin."), 400
+    q("DELETE FROM users WHERE id = %s", (uid,))
+    log_audit(me["username"], "user_delete", u["username"])
+    return jsonify(ok=True)
+
+
 @app.route("/users/<int:uid>/types", methods=["POST"])
 @admin_required
 def user_types(uid):

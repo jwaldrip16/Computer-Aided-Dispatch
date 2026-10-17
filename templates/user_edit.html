@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Edit user - CAD Lite{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Edit {{ u.username }}</h1>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post">
+    <label>Username <input name="username" value="{{ u.username }}" required></label>
+    <label>New password (leave blank to keep the old one)
+      <input type="password" name="password"></label>
+    <label>Role
+      <select name="role" id="roleSel">
+        <option value="dispatcher" {% if u.role == 'dispatcher' %}selected{% endif %}>Dispatcher</option>
+        <option value="unit" {% if u.role == 'unit' %}selected{% endif %}>Unit (responds to calls)</option>
+        <option value="admin" {% if u.role == 'admin' %}selected{% endif %}>Admin</option>
+      </select>
+    </label>
+    <div id="unitTypePick" {% if u.role != 'unit' %}style="display:none"{% endif %}>
+      <b>Responds to</b>
+      {% for t in ['police','fire','medical','other'] %}
+      <label class="checkrow"><input type="checkbox" name="unit_types" value="{{ t }}"
+        {% if t in (u['unit_types'] or '').split(',') %}checked{% endif %}> {{ t }}</label>
+      {% endfor %}
+    </div>
+    <button type="submit">Save changes</button>
+  </form>
+  <p class="muted"><a href="{{ url_for('users') }}">Back to users</a></p>
+</div>
+<script>
+const sel = document.getElementById('roleSel');
+const pick = document.getElementById('unitTypePick');
+function toggle() { pick.style.display = sel.value === 'unit' ? '' : 'none'; }
+sel.addEventListener('change', toggle);
+toggle();
+</script>
+{% endblock %}

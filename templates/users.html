@@ -5,7 +5,7 @@
   <h1>Users</h1>
   {% if error %}<p class="error">{{ error }}</p>{% endif %}
   <table class="calls">
-    <thead><tr><th>Username</th><th>Role</th><th>Responds to</th></tr></thead>
+    <thead><tr><th>Username</th><th>Role</th><th>Responds to</th><th>Actions</th></tr></thead>
     <tbody>
     {% for u in users %}
       <tr>
@@ -20,6 +20,10 @@
             <button type="submit">Save</button>
           </form>
           {% else %}n/a{% endif %}
+        </td>
+        <td>
+          <a href="{{ url_for('user_edit', uid=u.id) }}">Edit</a>
+          <button class="btn del userdel" data-uid="{{ u.id }}">Delete</button>
         </td>
       </tr>
     {% endfor %}
@@ -46,6 +50,14 @@
   </form>
 </div>
 <script>
+document.addEventListener('click', async e => {
+  const b = e.target.closest('button.userdel');
+  if (!b) return;
+  if (!b.dataset.conf) { b.textContent = 'Sure?'; b.dataset.conf = '1'; return; }
+  const r = await fetch('/user/' + b.dataset.uid + '/delete', {method: 'POST'});
+  if (r.ok) { window.location.reload(); }
+  else { const d = await r.json(); b.textContent = 'Delete'; delete b.dataset.conf; alert(d.error || 'Could not delete.'); }
+});
 const sel = document.getElementById('roleSel');
 const pick = document.getElementById('unitTypePick');
 function toggle() { pick.style.display = sel.value === 'unit' ? '' : 'none'; }
