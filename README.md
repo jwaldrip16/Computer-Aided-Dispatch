@@ -188,11 +188,16 @@ pending queue until dispatch is ready.
 - The dispatcher board shows each assigned unit's live response status on the
   call row ("enroute", "on scene", "transporting", "clear") and updates it on
   its own as units report in.
-- Every page is also recorded as an MP3 (the full spoken wording: type,
-  address, nature, response channel, repeat, and the Central time). The call
-  page's "Pages to units" list has a play button and a Save link for each
-  recording; a page whose recording failed still goes out and stays recorded
-  as text.
+- Every page is also recorded as an MP3 that matches the page the units
+  hear: it starts with the same tone-out the phones play (per call type,
+  four cycles on emergency priority), then the full spoken wording (type,
+  address, nature, response channel, repeat) and the Central time in
+  24-hour form. The call page's "Pages to units" list has a play button
+  and a Save link for each recording; a page whose recording failed still
+  goes out and stays recorded as text.
+- Calls in the pending queue can always be assigned by typing unit names
+  and sent with "Send to units", whether they were never sent or were
+  queued back from dispatched; adding units to a queued call never pages.
 - Every page to the units is recorded on the call page ("Pages to units"):
   the time and the units that were paged, including automatic re-pages when
   units change. The page voice is spoken by each unit phone, so there is no

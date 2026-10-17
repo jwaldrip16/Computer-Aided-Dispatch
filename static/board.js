@@ -26,14 +26,17 @@ function callSpeech(c) {
   if (FMT.say_type) parts.push(c.call_type == 'accident' ? 'Traffic accident with injuries' : TITLES[c.call_type] + ' call');
   if (FMT.say_address) parts.push('Address: ' + (c.address || ''));
   if (FMT.say_nature) parts.push('Nature: ' + (c.nature || ''));
-  if (FMT.say_time) parts.push('Dispatched at ' +
-    new Date(c.notified_at || c.created_at).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}));
+  if (FMT.say_time) {
+    const d = new Date(c.notified_at || c.created_at);
+    parts.push('Dispatched at ' + ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2));
+  }
   return parts.join('. ') + '.';
 }
 
 function rowHtml(c) {
   const open = c.status !== 'closed';
-  const send = !c.notified_at
+  const isPending = c.status === 'pending';
+  const send = (!c.notified_at || isPending)
     ? `<button class="btn notify" data-id="${c.id}">Send to units</button>`
     : '<span class="muted">sent</span>';
   const queueBtn = (c.status === 'open' || c.status === 'dispatched')
@@ -55,7 +58,7 @@ function rowHtml(c) {
       }).join(' ')
     : esc(c.units || '');
   const unitsCtl = open
-    ? (!c.notified_at
+    ? (isPending || !c.notified_at
       ? ` <input class="units-inp" placeholder="unit names" value="${escAttr(c.units || '')}"> ` +
         `<button class="btn bassign" data-id="${c.id}">Assign</button>`
       : ` <input class="units-inp" placeholder="add more units"> ` +

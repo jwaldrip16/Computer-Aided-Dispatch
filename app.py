@@ -558,7 +558,7 @@ def alert_text(call, fmt):
         parts.append("Nature: %s" % (call["nature"] or ""))
     if fmt.get("say_time"):
         when = call.get("notified_at") or call.get("created_at")
-        parts.append("Dispatched at %s" % (when or "").strftime("%I:%M %p")
+        parts.append("Dispatched at %s" % (when or "").strftime("%H:%M")
                      if when else "Dispatched now")
     return ". ".join(p for p in parts if p) + "."
 
@@ -998,7 +998,7 @@ def page_speech_text(c):
     """The full spoken page, the same wording the unit phones speak:
     type, address, nature, response channel, then the repeat and the time."""
     now_c = datetime.now(ZoneInfo("America/Chicago"))
-    stamp = "The time is %d:%02d." % (now_c.hour % 12 or 12, now_c.minute)
+    stamp = "The time is %02d:%02d." % (now_c.hour, now_c.minute)
     ctype = (c["call_type"] or "").strip().lower()
     first = ""
     if ctype:
@@ -1018,6 +1018,57 @@ def page_speech_text(c):
     return "%s %s %s" % (first, again, stamp)
 
 
+def _tone_mp3(ctype, emergency):
+    """MP3 of the alert tone-out, the same beep pattern the unit phones
+    play (sine beeps with 0.05 s fades). Returns None without lameenc."""
+    try:
+        import lameenc
+    except Exception:
+        return None
+    import math as _math
+    seq = []
+    secs = 0.0
+    cycles = 4 if emergency else (2 if ctype == "accident" else 3)
+    for _ in range(cycles):
+        if ctype == "police":
+            seq += [(1250, secs, 0.5), (800, secs + 0.6, 0.5)]; secs += 1.4
+        elif ctype == "fire":
+            for _k in range(4):
+                seq.append((950, secs, 0.25)); secs += 0.45
+            secs += 0.2
+        elif ctype == "medical":
+            for _k in range(3):
+                seq.append((620, secs, 0.5)); secs += 0.9
+        elif ctype == "accident":
+            seq += [(1250, secs, 0.5), (800, secs + 0.6, 0.5)]; secs += 1.4
+            for _k in range(3):
+                seq.append((620, secs, 0.5)); secs += 0.9
+        else:
+            seq += [(1000, secs, 0.7), (1200, secs + 0.8, 0.7)]; secs += 1.6
+    rate = 22050
+    total = secs + 0.4
+    n = int(total * rate)
+    pcm = bytearray(n * 2)
+    for freq, start, dur in seq:
+        i0, i1 = int(start * rate), int(min(start + dur, total) * rate)
+        for i in range(i0, i1):
+            t = (i - i0) / rate
+            amp = 0.6
+            if t < 0.05:
+                amp *= t / 0.05
+            elif dur - t < 0.05:
+                amp *= max(0.0, (dur - t) / 0.05)
+            v = int(amp * 32767 * _math.sin(2 * _math.pi * freq * t))
+            pcm[i * 2] = v & 0xFF
+            pcm[i * 2 + 1] = (v >> 8) & 0xFF
+    enc = lameenc.Encoder()
+    enc.set_bit_rate(64)
+    enc.set_in_sample_rate(rate)
+    enc.set_channels(1)
+    enc.set_quality(5)
+    return bytes(enc.encode(bytes(pcm))) + bytes(enc.flush())
+
+
 def record_page_audio(page_id, c):
     """Synthesize and store an MP3 recording of this page. Never fails the
     page itself: on any error the row just keeps its text, no audio."""
@@ -1026,8 +1077,10 @@ def record_page_audio(page_id, c):
         import io as _io
         buf = _io.BytesIO()
         gTTS(text=page_speech_text(c), lang="en").write_to_fp(buf)
+        tone = _tone_mp3((c["call_type"] or "other").strip().lower(),
+                         c["priority"] == "emergency") or b""
         q("UPDATE call_pages SET page_text = %s, audio = %s WHERE id = %s",
-          (page_speech_text(c), buf.getvalue(), page_id))
+          (page_speech_text(c), tone + buf.getvalue(), page_id))
     except Exception:
         q("UPDATE call_pages SET page_text = %s WHERE id = %s",
           (page_speech_text(c), page_id))
@@ -1115,7 +1168,7 @@ def call_units(call_id):
            "All units removed; call sent back to the pending queue."))
         log_audit(me["username"], "call_pending",
                   "call %s (all units removed)" % call_id)
-    elif units and c["notified_at"] and c["status"] != "closed":
+    elif units and c["notified_at"] and c["status"] not in ("closed", "pending"):
         q("UPDATE calls SET page_count = COALESCE(page_count, 0) + 1"
           " WHERE id = %s", (call_id,))
         q("INSERT INTO call_pages (call_id, units) VALUES (%s, %s)",

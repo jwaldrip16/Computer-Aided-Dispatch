@@ -127,7 +127,8 @@ function alertCall(c) {
 }
 
 function nowTime() {
-  return new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
+  const d = new Date();
+  return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
 }
 
 function speakAlert(c) {
