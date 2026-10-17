@@ -30,12 +30,15 @@
       <p><b>Units:</b> {{ c.units or 'none yet' }}</p>
     </div>
     <div>
-      <form method="post" action="{{ url_for('call_units', call_id=c.id) }}" class="inline">
+      <button id="recBtn" class="btn" type="button">Recommend units by location</button>
+      <div id="recPanel"></div>
+      <form method="post" action="{{ url_for('call_units', call_id=c.id) }}" class="inline" id="unitsForm">
         <label>Units assigned
-          <input name="units" value="{{ c.units or '' }}" placeholder="Engine 1, Medic 3, Unit 12...">
+          <input name="units" id="unitsInput" value="{{ c.units or '' }}" placeholder="Engine 1, Medic 3, Unit 12...">
         </label>
         <button type="submit">Save units</button>
       </form>
+      <p class="muted" id="recNote"></p>
       <div class="statusbtns">
         {% for s in ['open','dispatched','closed'] %}
         <form method="post" action="{{ url_for('call_status', call_id=c.id) }}" class="inline">
@@ -81,5 +84,53 @@
   </form>
 </div>
 <script>const CALL = {{ c|tojson }};</script>
+<script>
+(function () {
+  const btn = document.getElementById('recBtn');
+  const panel = document.getElementById('recPanel');
+  const note = document.getElementById('recNote');
+  function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    panel.textContent = '';
+    note.textContent = 'Finding the closest on-duty units...';
+    let r;
+    try {
+      r = await fetch('/call/' + CALL.id + '/recommend', { method: 'POST' });
+    } catch (e) {
+      note.textContent = 'Could not reach the app. Try again.';
+      btn.disabled = false;
+      return;
+    }
+    if (!r.ok) {
+      const e = await r.json().catch(() => ({}));
+      note.textContent = e.error || 'Could not find that address on the map.';
+      btn.disabled = false;
+      return;
+    }
+    const d = await r.json();
+    btn.disabled = false;
+    if (!d.recommendations.length) {
+      note.textContent = 'No on-duty units are sharing a location right now.';
+      return;
+    }
+    note.textContent = 'Closest on-duty units first (straight-line miles). Add puts the name in the box above.';
+    panel.innerHTML = d.recommendations.map(u =>
+      '<div class="row spread recrow"><span><b>' + esc(u.username) + '</b>, ' +
+      u.miles + ' mi away</span><button class="btn addUnit" type="button" data-name="' +
+      esc(u.username) + '">Add</button></div>').join('');
+  });
+  panel.addEventListener('click', e => {
+    const b = e.target.closest('button.addUnit');
+    if (!b) return;
+    const input = document.getElementById('unitsInput');
+    const cur = input.value.trim();
+    const have = cur ? cur.split(',').map(s => s.trim()).filter(Boolean) : [];
+    if (have.indexOf(b.dataset.name) === -1) have.push(b.dataset.name);
+    input.value = have.join(', ');
+    document.getElementById('unitsForm').submit();
+  });
+})();
+</script>
 <script src="{{ url_for('static', filename='call.js') }}"></script>
 {% endblock %}

@@ -4,7 +4,11 @@ SOP checklists for police / fire / medical calls, call sharing and export.
 """
 import csv
 import io
+import json
+import math
 import os
+import urllib.parse
+import urllib.request
 from datetime import datetime
 import secrets
 import threading
@@ -309,6 +313,24 @@ def new_call():
             return render_template("new_call.html", me=me, natures=NATURES,
                                    ctype=ctype, nature=nature, priority=priority,
                                    error="An address or location is required.")
+        norm = " ".join(address.lower().split())
+        dup = None
+        if request.form.get("force") != "1":
+            dup = q("SELECT id, call_type, nature, address, priority, status,"
+                    " units, dispatcher, created_at FROM calls"
+                    " WHERE status IN ('open','dispatched') AND call_type = %s"
+                    " AND lower(regexp_replace(address, '\\s+', ' ', 'g')) = %s"
+                    " ORDER BY id DESC LIMIT 1",
+                    (ctype, norm), one=True)
+        if dup:
+            return render_template("new_call.html", me=me, natures=NATURES,
+                                   ctype=ctype, nature=nature, priority=priority,
+                                   dup=dup,
+                                   caller_name=(request.form.get("caller_name") or "").strip(),
+                                   caller_phone=(request.form.get("caller_phone") or "").strip(),
+                                   notes_in=(request.form.get("notes_in") or "").strip(),
+                                   notify=request.form.get("notify") == "1",
+                                   error="")
         notify = request.form.get("notify") == "1"
         cid = q(
             "INSERT INTO calls (call_type, nature, address, priority,"
@@ -445,6 +467,63 @@ def settings_page():
          "created_at": datetime.now()},
         fmt)
     return render_template("settings.html", me=me, fmt=fmt, example=example)
+
+
+def geocode_call_address(address):
+    """Look up a call address on the free OpenStreetMap geocoder. Returns
+    (lat, lng) or None. The result is cached on the call row."""
+    url = "https://nominatim.openstreetmap.org/search?" + urllib.parse.urlencode(
+        {"q": address, "format": "json", "limit": "1"})
+    req = urllib.request.Request(
+        url, headers={"User-Agent": "CAD-Lite/1.0 (dispatch aid)"})
+    try:
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except Exception:
+        return None
+    if not data:
+        return None
+    try:
+        return float(data[0]["lat"]), float(data[0]["lon"])
+    except Exception:
+        return None
+
+
+def haversine_miles(lat1, lng1, lat2, lng2):
+    r = 6371.0
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp, dl = math.radians(lat2 - lat1), math.radians(lng2 - lng1)
+    a = (math.sin(dp / 2) ** 2 +
+         math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2)
+    return 2 * r * math.asin(math.sqrt(a)) * 0.621371
+
+
+@app.route("/call/<int:call_id>/recommend", methods=["POST"])
+@staff_required
+def call_recommend(call_id):
+    me = current_user()
+    call = _load_call(call_id)
+    if call["lat"] is None or call["lng"] is None:
+        loc = geocode_call_address(call["address"])
+        if not loc:
+            return jsonify(ok=False,
+                           error="Could not find that address on the map."
+                                 " Check the spelling or add the city."), 400
+        q("UPDATE calls SET lat = %s, lng = %s WHERE id = %s",
+          (loc[0], loc[1], call_id))
+        clat, clng = loc
+    else:
+        clat, clng = call["lat"], call["lng"]
+    units = q("SELECT username, lat, lng FROM users"
+              " WHERE role = 'unit' AND unit_status = 'on_duty'"
+              " AND lat IS NOT NULL AND lng IS NOT NULL")
+    recs = sorted(
+        ({"username": u["username"],
+          "miles": round(haversine_miles(clat, clng, u["lat"], u["lng"]), 1)}
+         for u in units),
+        key=lambda r: r["miles"])
+    log_audit(me["username"], "units_recommended", "call %s" % call_id)
+    return jsonify(ok=True, recommendations=recs)
 
 
 @app.route("/call/<int:call_id>/notify", methods=["POST"])

@@ -118,7 +118,13 @@ async function poll() {
       '<li class="muted">None yet.</li>';
     const fresh = [];
     for (const c of d.active) {
-      if (!seen.has(c.id)) { seen.add(c.id); if (!firstLoad) fresh.push(c); }
+      if (!seen.has(c.id)) {
+        seen.add(c.id);
+        if (!firstLoad) {
+          document.querySelectorAll('.row-' + c.id).forEach(x => x.classList.add('flash'));
+          fresh.push(c);
+        }
+      }
     }
     if (fresh.length) alertCall(fresh[0]);
     firstLoad = false;

@@ -9,7 +9,7 @@
 <body>
 <header class="topbar">
   <div class="brand">CAD Lite</div>
-  {% if me['role'] == 'unit' %}
+  {% if me and me['role'] == 'unit' %}
   <nav>
     <a href="{{ url_for('unit_home') }}">My calls</a>
     <span class="who">{{ me['username'] }}</span>

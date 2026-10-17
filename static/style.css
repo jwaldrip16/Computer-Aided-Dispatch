@@ -28,8 +28,8 @@ button:disabled { background:#9aa2b1; cursor:default; }
 table.calls { width:100%; border-collapse:collapse; background:#fff; }
 table.calls th, table.calls td { border:1px solid #d9dce3; padding:6px 8px; font-size:.9rem; text-align:left; }
 table.calls th { background:#e8ebf2; }
-table.calls tr.flash { animation: flash 1.2s ease 3; }
-@keyframes flash { 0%,100% { background:#fff; } 50% { background:#ffe08a; } }
+table.calls tr.flash, .card.flash { animation: flash 1.2s ease 5; }
+@keyframes flash { 0%,100% { background:#fff; } 50% { background:#ffb84d; } }
 .tag { display:inline-block; color:#fff; border-radius:5px; padding:2px 8px; font-size:.8rem; font-weight:600; }
 .tag.police { background:var(--police); }
 .tag.fire { background:var(--fire); }
@@ -63,3 +63,6 @@ table.calls tr.flash { animation: flash 1.2s ease 3; }
 .unitmap { height: 420px; border-radius: 10px; border: 1px solid #d9dce3; margin: 10px 0; }
 .checkrow { font-weight: 400; }
 .checkrow input { width: auto; margin-right: 6px; }
+
+.dupwarn { border: 2px solid #b3261e; background: #fff3f2; }
+.dupwarn form { margin: 8px 0; }

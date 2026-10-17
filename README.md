@@ -32,6 +32,25 @@ What it does:
   duty. Off duty means no location is stored. Dispatch sees on-duty units on
   the Units page on a live map with a list and how long ago each fix came in.
 
+## Recommend units by location
+
+On a call page there is a "Recommend units by location" button. It looks up the
+call address on the free OpenStreetMap geocoder (the result is saved on the
+call), then lists every on-duty unit that is sharing its location, closest
+first, in straight-line miles. "Add" puts the unit's name into the Units
+assigned box.
+
+- A unit shows up only while it is on duty AND its phone has sent a location
+  (units share location only while on duty).
+- The miles are straight-line, not driving miles; the dispatcher still decides
+  who to send.
+
+## New-call flash
+
+On the dispatch board a newly arrived call row flashes amber five times. On a
+unit phone, a new matching call flashes its card the same way, then the tone
+and voice alert plays.
+
 ## Deploy on Railway (new project)
 1. Make a new empty project (repo) for this code, like your other Railway apps.
 2. In the Railway project, add a PostgreSQL database. Railway creates a
@@ -53,6 +72,11 @@ What it does:
    adding notes as things happen, and set the status: Open, Dispatched, Closed.
 4. Send the call to the unit phones with the Send to unit phones button (the
    new-call form does this by default unless you untick the box).
+   Duplicate check: if an active call already has the same type and address,
+   the form stops and offers two buttons: "Add this caller to call #N as a
+   note" (keeps one call, records the second caller on it) or "Enter as a new
+   call anyway" (forces the new call through). Matching ignores capital
+   letters and extra spaces.
 5. Share a call or the log with a partner agency using the Share buttons.
 
 ## Notes
