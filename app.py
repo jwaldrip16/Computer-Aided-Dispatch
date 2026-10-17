@@ -11,6 +11,7 @@ import os
 import urllib.parse
 import urllib.request
 from datetime import datetime
+from zoneinfo import ZoneInfo
 import secrets
 import threading
 
@@ -160,6 +161,10 @@ def init_db():
             cur.execute(schema)
             cur.execute("ALTER TABLE calls ADD COLUMN IF NOT EXISTS"
                         " page_count INTEGER DEFAULT 0")
+            cur.execute("ALTER TABLE call_pages ADD COLUMN IF NOT EXISTS"
+                        " page_text TEXT")
+            cur.execute("ALTER TABLE call_pages ADD COLUMN IF NOT EXISTS"
+                        " audio BYTEA")
             cur.execute("SELECT count(*) AS n FROM sop_templates")
             if cur.fetchone()[0] == 0:
                 for ctype, steps in DEFAULT_SOPS.items():
@@ -468,7 +473,9 @@ def call_view(call_id):
     pages = q("SELECT * FROM call_pages WHERE call_id = %s"
               " ORDER BY id DESC LIMIT 20", (call_id,))
     c["pages"] = [{"units": p["units"],
-                   "paged_at_str": p["paged_at"].strftime("%a %b %d, %I:%M %p")}
+                   "id": p["id"], "call_id": p["call_id"],
+                   "paged_at_str": p["paged_at"].strftime("%a %b %d, %I:%M %p"),
+                   "audio": bool(p["audio"])}
                   for p in pages]
     steps = q("SELECT * FROM sop_templates WHERE call_type = %s"
               " ORDER BY position", (c["call_type"],))
@@ -983,6 +990,49 @@ def call_pending(call_id):
     return redirect(url_for("call_view", call_id=call_id))
 
 
+PAGE_TITLES = {"police": "Police", "fire": "Fire", "medical": "Medical",
+               "other": "Call", "accident": "Traffic accident with injuries"}
+
+
+def page_speech_text(c):
+    """The full spoken page, the same wording the unit phones speak:
+    type, address, nature, response channel, then the repeat and the time."""
+    now_c = datetime.now(ZoneInfo("America/Chicago"))
+    stamp = "The time is %d:%02d." % (now_c.hour % 12 or 12, now_c.minute)
+    ctype = (c["call_type"] or "").strip().lower()
+    first = ""
+    if ctype:
+        title = (PAGE_TITLES.get(ctype, ctype.title())
+                 if ctype != "accident" else PAGE_TITLES["accident"])
+        first = ("%s call. " % title) if ctype != "accident" else "%s. " % title
+    first += "Address: %s." % (c["address"] or "")
+    if (c["nature"] or "").strip():
+        first += " Nature: %s." % c["nature"].strip()
+    if (c["response_channel"] or "").strip():
+        first += " Respond on %s." % c["response_channel"].strip()
+    again = "Address: %s." % (c["address"] or "")
+    if (c["nature"] or "").strip():
+        again += " Nature: %s." % c["nature"].strip()
+    if (c["response_channel"] or "").strip():
+        again += " Respond on %s." % c["response_channel"].strip()
+    return "%s %s %s" % (first, again, stamp)
+
+
+def record_page_audio(page_id, c):
+    """Synthesize and store an MP3 recording of this page. Never fails the
+    page itself: on any error the row just keeps its text, no audio."""
+    try:
+        from gtts import gTTS
+        import io as _io
+        buf = _io.BytesIO()
+        gTTS(text=page_speech_text(c), lang="en").write_to_fp(buf)
+        q("UPDATE call_pages SET page_text = %s, audio = %s WHERE id = %s",
+          (page_speech_text(c), buf.getvalue(), page_id))
+    except Exception:
+        q("UPDATE call_pages SET page_text = %s WHERE id = %s",
+          (page_speech_text(c), page_id))
+
+
 @app.route("/call/<int:call_id>/notify", methods=["POST"])
 @staff_required
 def call_notify(call_id):
@@ -1001,10 +1051,21 @@ def call_notify(call_id):
       " page_count = COALESCE(page_count, 0) + 1 WHERE id = %s", (call_id,))
     q("INSERT INTO call_pages (call_id, units) VALUES (%s, %s)",
       (call_id, c["units"]))
+    record_page_audio(q("SELECT id FROM call_pages WHERE call_id = %s"
+                        " ORDER BY id DESC LIMIT 1", (call_id,))[0]["id"], c)
     log_audit(me["username"], "call_sent_to_units", "call %s" % call_id)
     if request.is_json:
         return jsonify(ok=True)
     return redirect(url_for("call_view", call_id=call_id))
+
+
+@app.route("/call-page/<int:page_id>/audio")
+@login_required
+def page_audio(page_id):
+    rows = q("SELECT audio FROM call_pages WHERE id = %s", (page_id,))
+    if not rows or not rows[0]["audio"]:
+        abort(404)
+    return Response(rows[0]["audio"], mimetype="audio/mpeg")
 
 
 @app.route("/call/<int:call_id>/note", methods=["POST"])
@@ -1059,6 +1120,9 @@ def call_units(call_id):
           " WHERE id = %s", (call_id,))
         q("INSERT INTO call_pages (call_id, units) VALUES (%s, %s)",
           (call_id, units))
+        record_page_audio(q("SELECT id FROM call_pages WHERE call_id = %s"
+                            " ORDER BY id DESC LIMIT 1",
+                            (call_id,))[0]["id"], c)
         q("INSERT INTO call_notes (call_id, author, text) VALUES (%s,%s,%s)",
           (call_id, me["username"],
            "Units changed to %s; assigned units re-paged." % units))

@@ -79,7 +79,9 @@ CREATE TABLE IF NOT EXISTS call_pages (
     id SERIAL PRIMARY KEY,
     call_id INTEGER NOT NULL,
     units TEXT,
-    paged_at TIMESTAMPTZ DEFAULT now()
+    paged_at TIMESTAMPTZ DEFAULT now(),
+    page_text TEXT,
+    audio BYTEA
 );
 ALTER TABLE calls ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION;
 

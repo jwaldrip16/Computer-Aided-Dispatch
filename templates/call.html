@@ -32,7 +32,13 @@
       {% if c.pages %}
       <p><b>Pages to units:</b></p>
       <ul class="pages">
-      {% for p in c.pages %}<li>{{ p.paged_at_str }} &middot; {{ p.units }}</li>{% endfor %}
+      {% for p in c.pages %}<li>{{ p.paged_at_str }} &middot; {{ p.units }}
+        {% if p.audio %}&middot;
+          <audio controls preload="none" src="{{ url_for('page_audio', page_id=p.id) }}"></audio>
+          <a class="btn" href="{{ url_for('page_audio', page_id=p.id) }}"
+             download="page-{{ p.call_id }}-{{ p.id }}.mp3">Save</a>
+        {% endif %}
+      </li>{% endfor %}
       </ul>
       {% endif %}
       {% if c.notes_in %}<p><b>Caller said:</b> {{ c.notes_in }}</p>{% endif %}
