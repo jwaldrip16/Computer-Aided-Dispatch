@@ -70,3 +70,11 @@ table.calls tr.flash, .card.flash { animation: flash 1.2s ease 5; }
 .callmap { width: 100%; max-width: 560px; height: 320px; border: 0; border-radius: 8px; margin-top: 8px; display: block; }
 .flashbar { max-width: 1100px; margin: 10px auto 0; padding: 0 16px; }
 .flashmsg { background: #f2f7f2; border: 1px solid #b7d4b7; color: #2c4a2c; padding: 8px 12px; border-radius: 6px; margin: 0 0 6px; }
+
+/* address suggestions while typing */
+.addr-sug { border: 1px solid #c9ccd1; border-radius: 6px; margin-top: 4px;
+  max-height: 220px; overflow: auto; background: #fff; }
+.addr-sug-item { display: block; width: 100%; text-align: left; padding: 8px 10px;
+  border: 0; border-bottom: 1px solid #eee; background: #fff; cursor: pointer;
+  font-size: 15px; color: inherit; }
+.addr-sug-item:hover { background: #eef1f6; }

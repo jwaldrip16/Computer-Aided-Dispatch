@@ -546,6 +546,51 @@ def haversine_miles(lat1, lng1, lat2, lng2):
     return 2 * r * math.asin(math.sqrt(a)) * 0.621371
 
 
+@app.route("/api/address-suggest")
+@staff_required
+def address_suggest():
+    """Address suggestions while typing. Google when a key is set (Places
+    autocomplete, then Geocoding as backup), free OpenStreetMap otherwise."""
+    q_str = (request.args.get("q") or "").strip()
+    if len(q_str) < 3:
+        return jsonify(ok=True, suggestions=[])
+    out = []
+    key = get_google_key()
+    if key:
+        try:
+            url = ("https://maps.googleapis.com/maps/api/place/autocomplete/json?" +
+                   urllib.parse.urlencode({"input": q_str, "key": key,
+                                           "components": "country:us"}))
+            with urllib.request.urlopen(url, timeout=6) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            if data.get("status") == "OK":
+                out = [p["description"] for p in data.get("predictions", [])][:5]
+        except Exception:
+            out = []
+        if not out:
+            try:
+                url = ("https://maps.googleapis.com/maps/api/geocode/json?" +
+                       urllib.parse.urlencode({"address": q_str, "key": key}))
+                with urllib.request.urlopen(url, timeout=6) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                out = [r["formatted_address"]
+                       for r in data.get("results", [])][:5]
+            except Exception:
+                out = []
+    if not out:
+        try:
+            url = "https://nominatim.openstreetmap.org/search?" + urllib.parse.urlencode(
+                {"q": q_str, "format": "json", "limit": 5})
+            req = urllib.request.Request(
+                url, headers={"User-Agent": "CAD-Lite/1.0 (dispatch aid)"})
+            with urllib.request.urlopen(req, timeout=6) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            out = [d["display_name"] for d in data][:5]
+        except Exception:
+            out = []
+    return jsonify(ok=True, suggestions=out)
+
+
 @app.route("/api/validate-address", methods=["POST"])
 @staff_required
 def api_validate_address():
@@ -570,7 +615,7 @@ def call_delete(call_id):
         flash("Call #%s was already gone." % call_id)
         return redirect(url_for("board"))
     q("DELETE FROM calls WHERE id = %s", (call_id,))
-    q("DELETE FROM notes WHERE call_id = %s", (call_id,))
+    q("DELETE FROM call_notes WHERE call_id = %s", (call_id,))
     log_audit(me["username"], "call_deleted",
               "call %s: %s, %s" % (call_id, row["nature"], row["address"]))
     flash("Call #%s deleted." % call_id)

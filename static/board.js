@@ -47,7 +47,8 @@ function rowHtml(c) {
     `<td>${esc(c.dispatcher || '')}</td>` +
     `<td><a href="/call/${c.id}">Open</a> ` +
     `<button class="btn read" data-id="${c.id}">Read</button> ` +
-    send + `</td>` +
+    send + (IS_ADMIN ? ` <button class="btn del" data-id="${c.id}">Delete</button>` : '') +
+    `</td>` +
     `</tr>`;
 }
 
@@ -112,3 +113,12 @@ $('logShareBtn').addEventListener('click', async () => {
 
 poll();
 setInterval(poll, 4000);
+
+document.addEventListener('click', e => {
+  const b = e.target.closest('button.del');
+  if (!b) return;
+  if (b.dataset.c !== '1') { b.dataset.c = '1'; b.textContent = 'Sure?'; return; }
+  fetch('/call/' + b.dataset.id + '/delete', {method: 'POST'})
+    .then(r => { if (r.ok) poll(); else b.textContent = 'Failed'; })
+    .catch(() => { b.textContent = 'Failed'; });
+});

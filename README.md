@@ -52,6 +52,12 @@ unit phone, a new matching call flashes its card the same way, then the tone
 and voice alert plays.
 
 ## Maps and address checking
+-------------------------
+- While you type an address on the New call page, suggestions appear under the box.
+  Pick one and the map check runs automatically: the address box fills in, the
+  coordinates are saved with the call, and a map preview shows.
+- Suggestions use your Google Maps key when one is set (Settings or the GOOGLE_KEY
+  environment variable), and fall back to the free OpenStreetMap geocoder.
 
 Type a house number and street, a city, or cross streets like
 "Main St & 4th Ave, Opelika" in the address box. Click "Check address on

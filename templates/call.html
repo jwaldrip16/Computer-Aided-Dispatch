@@ -39,9 +39,9 @@
       {% endif %}
       <p><b>Units:</b> {{ c.units or 'none yet' }}</p>
       {% if me['role'] == 'admin' %}
-      <form method="post" action="{{ url_for('call_delete', call_id=c.id) }}" class="inline"
-        onsubmit="return confirm('Delete call #{{ c.id }}? This cannot be undone.');">
-        <button type="submit" class="btn primary">Delete call</button>
+      <form method="post" action="{{ url_for('call_delete', call_id=c.id) }}" class="inline">
+        <button type="submit" class="btn primary"
+          onclick="if(this.dataset.c!=='1'){this.dataset.c='1';this.textContent='Confirm delete?';return false;}return true;">Delete call</button>
       </form>
       {% endif %}
     </div>
