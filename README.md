@@ -158,6 +158,8 @@ pending queue until dispatch is ready.
 - Assigning happens in the pending queue. Each pending row has a unit box and an
   Assign button (or open the call and use the units box and the one-tap unit buttons).
   Assigning does not page the phones yet.
+- To remove a unit before the call is sent, tap the X next to its name on the
+  pending row. Editing the box and pressing Assign also works.
 - When you are ready, press "Send to unit phones" (on the call page, or "Send to
   units" on the board row). The call moves to Dispatched and the phones get the tone
   and voice alert. Units never see pending calls.

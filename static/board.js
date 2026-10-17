@@ -42,9 +42,14 @@ function rowHtml(c) {
     ? ` <button class="btn near" data-id="${c.id}">Nearest</button>` : '';
   const clrBtn = c.status !== 'closed'
     ? ` <button class="btn clr" data-id="${c.id}">Clear</button>` : '';
+  const unitList = (c.units || '').split(',').map(s => s.trim()).filter(Boolean);
+  const unitsCell = (open && !c.notified_at && unitList.length)
+    ? unitList.map(n =>
+        `<button class="btn udel" data-id="${c.id}" data-name="${escAttr(n)}" data-units="${escAttr(c.units)}" title="Remove ${escAttr(n)}">${esc(n)} &times;</button>`).join(' ')
+    : esc(c.units || '');
   const unitsCtl = open
     ? (!c.notified_at
-      ? ` <input class="units-inp" placeholder="unit names"> ` +
+      ? ` <input class="units-inp" placeholder="unit names" value="${escAttr(c.units || '')}"> ` +
         `<button class="btn bassign" data-id="${c.id}">Assign</button>`
       : ` <input class="units-inp" placeholder="add more units"> ` +
         `<button class="btn badd" data-id="${c.id}">Add units</button> ` +
@@ -57,7 +62,7 @@ function rowHtml(c) {
     `<td>${esc(c.address)}</td>` +
     `<td><span class="tag p-${c.priority}">${c.priority}</span></td>` +
     `<td>${c.status}</td>` +
-    `<td>${esc(c.units || '')}</td>` +
+    `<td>${unitsCell}</td>` +
     `<td>${esc(c.dispatcher || '')}</td>` +
     `<td><a href="/call/${c.id}">Open</a> ` +
     `<button class="btn read" data-id="${c.id}" data-addr="${escAttr(c.address || 'not given')}" data-nat="${escAttr(c.nature || 'not given')}">Read</button> ` +
@@ -158,6 +163,16 @@ document.addEventListener('click', async e => {
     fd.set('units', v);
     fd.set('mode', 'add');
     await fetch(`/call/${bu.dataset.id}/units`, {method: 'POST', body: fd});
+    poll();
+  }
+  const ud = e.target.closest('button.udel');
+  if (ud) {
+    ud.disabled = true;
+    const rest = (ud.dataset.units || '').split(',').map(s => s.trim())
+      .filter(Boolean).filter(n => n !== ud.dataset.name);
+    const fd = new FormData();
+    fd.set('units', rest.join(', '));
+    await fetch(`/call/${ud.dataset.id}/units`, {method: 'POST', body: fd});
     poll();
   }
   const bp = e.target.closest('button.bpage');
