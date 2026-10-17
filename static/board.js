@@ -36,6 +36,8 @@ function rowHtml(c) {
   const send = !c.notified_at
     ? `<button class="btn notify" data-id="${c.id}">Send to units</button>`
     : '<span class="muted">sent</span>';
+  const queueBtn = (c.status === 'open' || c.status === 'dispatched')
+    ? ` <button class="btn queue" data-id="${c.id}">Queue</button>` : '';
   return `<tr ${open ? 'class="row-' + c.id + '"' : ''}>` +
     `<td>${fmt(c.created_at)}</td>` +
     `<td><span class="tag ${c.call_type}">${c.call_type}</span></td>` +
@@ -47,7 +49,7 @@ function rowHtml(c) {
     `<td>${esc(c.dispatcher || '')}</td>` +
     `<td><a href="/call/${c.id}">Open</a> ` +
     `<button class="btn read" data-id="${c.id}">Read</button> ` +
-    send + (IS_ADMIN ? ` <button class="btn del" data-id="${c.id}">Delete</button>` : '') +
+    send + queueBtn + (IS_ADMIN ? ` <button class="btn del" data-id="${c.id}">Delete</button>` : '') +
     `</td>` +
     `</tr>`;
 }
@@ -61,13 +63,34 @@ function fill(tbodyId, emptyId, list) {
   $(emptyId).classList.toggle('hidden', list.length > 0);
 }
 
+function unitChip(u) {
+  const cls = u.unit_status === 'on_duty' ? 'u u-on' : 'u u-off';
+  const types = u.unit_types ? ' (' + u.unit_types.split(',').join(', ') + ')' : '';
+  const loc = u.loc_updated
+    ? ' <span class="uloc">location ' +
+      new Date(u.loc_updated).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) + '</span>'
+    : '';
+  return '<span class="' + cls + '">' + esc(u.username) + esc(types) + loc + '</span>';
+}
+
+function fillUnits(list) {
+  const on = list.filter(u => u.unit_status === 'on_duty');
+  const off = list.filter(u => u.unit_status !== 'on_duty');
+  $('onDuty').innerHTML = on.length ? on.map(unitChip).join(' ')
+    : '<span class="muted">Nobody on duty</span>';
+  $('offDuty').innerHTML = off.length ? off.map(unitChip).join(' ')
+    : '<span class="muted">No units</span>';
+}
+
 async function poll() {
   try {
     const r = await fetch('/api/board');
     if (r.status === 401) { location.href = '/login'; return; }
     const d = await r.json();
     fill('activeBody', 'noActive', d.active);
+    fill('pendingBody', 'noPending', d.pending || []);
     fill('recentBody', 'noRecent', d.recent);
+    fillUnits(d.units || []);
     for (const c of d.active) {
       if (!seen.has(c.id)) {
         if (!firstLoad) {
@@ -92,6 +115,12 @@ $('voiceBtn').addEventListener('click', () => {
 document.addEventListener('click', async e => {
   const b = e.target.closest('button.read');
   if (b) speak(`Address: ${b.dataset.addr}. Nature: ${b.dataset.nat}.`);
+  const qb = e.target.closest('button.queue');
+  if (qb) {
+    qb.disabled = true;
+    await fetch(`/call/${qb.dataset.id}/pending`, {method: 'POST'});
+    poll();
+  }
   const n = e.target.closest('button.notify');
   if (n) {
     n.disabled = true;

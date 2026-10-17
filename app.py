@@ -6,6 +6,7 @@ import csv
 import io
 import json
 import math
+import time
 import os
 import urllib.parse
 import urllib.request
@@ -24,7 +25,7 @@ ADMIN_USER = os.environ.get("ADMIN_USER", "")
 ADMIN_PASS = os.environ.get("ADMIN_PASS", "")
 
 CALL_TYPES = ("police", "fire", "medical", "other")
-STATUSES = ("open", "dispatched", "closed")
+STATUSES = ("open", "pending", "dispatched", "closed")
 PRIORITIES = ("low", "routine", "urgent", "emergency")
 
 NATURES = {
@@ -290,10 +291,23 @@ def board():
 def api_board():
     active = q("SELECT * FROM calls WHERE status IN ('open','dispatched')"
                " ORDER BY id DESC")
+    pending = q("SELECT * FROM calls WHERE status = 'pending'"
+                " ORDER BY id DESC")
     recent = q("SELECT * FROM calls WHERE status = 'closed'"
                " ORDER BY closed_at DESC NULLS LAST, id DESC LIMIT 25")
+    units = q("SELECT username, unit_types, unit_status, lat, lng, loc_updated"
+              " FROM users WHERE role = 'unit' ORDER BY username")
+    units_out = [{"username": r["username"],
+                  "unit_types": r["unit_types"] or "",
+                  "unit_status": r["unit_status"] or "off_duty",
+                  "lat": r["lat"], "lng": r["lng"],
+                  "loc_updated": r["loc_updated"].isoformat()
+                  if r["loc_updated"] else None}
+                 for r in units]
     return jsonify(active=[call_dict(r) for r in active],
-                   recent=[call_dict(r) for r in recent])
+                   pending=[call_dict(r) for r in pending],
+                   recent=[call_dict(r) for r in recent],
+                   units=units_out)
 
 
 @app.route("/call/new", methods=["GET", "POST"])
@@ -338,6 +352,7 @@ def new_call():
                                    notify=request.form.get("notify") == "1",
                                    error="")
         notify = request.form.get("notify") == "1"
+        queue = request.form.get("queue") == "1"
         vals = [ctype, nature, address, priority,
                 (request.form.get("caller_name") or "").strip() or None,
                 (request.form.get("caller_phone") or "").strip() or None,
@@ -345,10 +360,15 @@ def new_call():
                 me["username"], addr_lat, addr_lng, addr_formatted]
         cid = q("INSERT INTO calls (call_type, nature, address, priority,"
                 " caller_name, caller_phone, notes_in, dispatcher, lat, lng,"
-                " addr_formatted, notified_at)"
+                " addr_formatted, status, notified_at)"
                 " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
-                + ("now()" if notify else "NULL") + ") RETURNING id",
+                + ("'pending'" if queue else "'open'") + ","
+                + ("now()" if notify and not queue else "NULL")
+                + ") RETURNING id",
                 vals, one=True)["id"]
+        if queue:
+            q("INSERT INTO call_notes (call_id, author, text)"
+              " VALUES (%s,%s,%s)", (cid, me["username"], "Sent to pending queue."))
         log_audit(me["username"], "call_created",
                   "call %s: %s, %s, %s" % (cid, ctype, nature, address))
         return redirect(url_for("call_view", call_id=cid))
@@ -523,30 +543,75 @@ def get_google_key():
     return os.environ.get("GOOGLE_KEY", "").strip() or None
 
 
+def _fetch_json(url, headers=None, timeout=8, retries=1):
+    """GET JSON with one retry after a short pause (the free map service
+    rate-limits rapid requests)."""
+    last = None
+    for attempt in range(retries + 1):
+        try:
+            req = urllib.request.Request(url, headers=headers or {})
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except Exception as e:
+            last = e
+            if attempt < retries:
+                time.sleep(1.5)
+    raise last
+
+
+def _geocode_in_lee(address):
+    """OpenStreetMap lookup, kept to results that really sit in Lee County,
+    Alabama (the free geocoder otherwise returns fuzzy look-alikes)."""
+    s, w, n, e = LEE_BBOX
+    url = "https://nominatim.openstreetmap.org/search?" + urllib.parse.urlencode(
+        {"q": address, "format": "json", "limit": 5,
+         "viewbox": "%s,%s,%s,%s" % (w, n, e, s), "bounded": "1"})
+    try:
+        data = _fetch_json(url, headers={"User-Agent": "CAD-Lite/1.0 (dispatch aid)"})
+    except Exception:
+        return None
+    for d in data:
+        addr = d.get("address") or {}
+        disp = (d.get("display_name") or "").lower()
+        if _in_lee_county(county=addr.get("county"), state=addr.get("state")) \
+           or ("lee county" in disp and "alabama" in disp):
+            return float(d["lat"]), float(d["lon"])
+    return None
+
+
 def validate_call_address(address):
     """Check an address against Google Maps when a key is set, otherwise
-    the free OpenStreetMap geocoder. Returns
+    the free OpenStreetMap geocoder. Rural roads like "1085 Lee County
+    Road 166" are retried with the county added. Returns
     {formatted, lat, lng, source} or None when nothing matches."""
     key = get_google_key()
+    cands = [address]
+    if "lee county" not in address.lower() and "lee road" not in address.lower():
+        cands.append(address + ", Lee County, AL")
     if key:
-        try:
-            url = ("https://maps.googleapis.com/maps/api/geocode/json?" +
-                   urllib.parse.urlencode({"address": address, "key": key}))
-            with urllib.request.urlopen(url, timeout=8) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            if data.get("results"):
-                r = data["results"][0]
-                loc = r["geometry"]["location"]
-                return {"formatted": r["formatted_address"],
-                        "lat": float(loc["lat"]), "lng": float(loc["lng"]),
-                        "source": "google"}
-        except Exception:
-            pass
-    loc = geocode_call_address(address)
-    if not loc:
-        return None
-    return {"formatted": address, "lat": loc[0], "lng": loc[1],
-            "source": "openstreetmap"}
+        for cand in cands:
+            try:
+                url = ("https://maps.googleapis.com/maps/api/geocode/json?" +
+                       urllib.parse.urlencode({"address": cand, "key": key}))
+                data = _fetch_json(url)
+                kept = _lee_from_geocode(data.get("results", []))
+                if kept:
+                    loc = None
+                    for r in data["results"]:
+                        if r["formatted_address"] in kept:
+                            loc = r["geometry"]["location"]
+                            return {"formatted": r["formatted_address"],
+                                    "lat": float(loc["lat"]),
+                                    "lng": float(loc["lng"]),
+                                    "source": "google"}
+            except Exception:
+                pass
+    for cand in cands:
+        loc = _geocode_in_lee(cand)
+        if loc:
+            return {"formatted": cand, "lat": loc[0], "lng": loc[1],
+                    "source": "openstreetmap"}
+    return None
 
 
 def geocode_call_address(address):
@@ -554,11 +619,8 @@ def geocode_call_address(address):
     (lat, lng) or None. The result is cached on the call row."""
     url = "https://nominatim.openstreetmap.org/search?" + urllib.parse.urlencode(
         {"q": address, "format": "json", "limit": "1"})
-    req = urllib.request.Request(
-        url, headers={"User-Agent": "CAD-Lite/1.0 (dispatch aid)"})
     try:
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+        data = _fetch_json(url, headers={"User-Agent": "CAD-Lite/1.0 (dispatch aid)"})
     except Exception:
         return None
     if not data:
@@ -578,6 +640,47 @@ def haversine_miles(lat1, lng1, lat2, lng2):
     return 2 * r * math.asin(math.sqrt(a)) * 0.621371
 
 
+# The dispatch area is Lee County, Alabama: the address box only fills in
+# addresses there.
+LEE_CENTER = (32.60, -85.36)
+LEE_BBOX = (32.32, -85.68, 32.83, -85.03)  # south, west, north, east
+
+
+def _f(v):
+    """float() that never raises."""
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return None
+
+
+def _in_lee_county(county=None, state=None, lat=None, lng=None):
+    if county is not None:
+        name = county.lower().replace("county", "").strip()
+        if name != "lee":
+            return False
+        if state:
+            st = state.lower().replace(".", "").strip()
+            if st not in ("al", "alabama"):
+                return False
+        return True
+    if lat is None or lng is None:
+        return False
+    s, w, n, e = LEE_BBOX
+    return s <= lat <= n and w <= lng <= e
+
+
+def _lee_from_geocode(results):
+    """Keep the geocoder results that sit in Lee County, Alabama."""
+    kept = []
+    for r in results:
+        comp = {c["types"][0]: c["long_name"] for c in r.get("address_components", [])}
+        if _in_lee_county(county=comp.get("administrative_area_level_2"),
+                          state=comp.get("administrative_area_level_1")):
+            kept.append(r["formatted_address"])
+    return kept
+
+
 @app.route("/api/address-suggest")
 @staff_required
 def address_suggest():
@@ -589,35 +692,58 @@ def address_suggest():
     out = []
     key = get_google_key()
     if key:
+        preds = []
         try:
             url = ("https://maps.googleapis.com/maps/api/place/autocomplete/json?" +
                    urllib.parse.urlencode({"input": q_str, "key": key,
-                                           "components": "country:us"}))
+                                           "components": "country:us",
+                                           "locationrestriction":
+                                               "circle:30000@%s,%s" % LEE_CENTER}))
             with urllib.request.urlopen(url, timeout=6) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             if data.get("status") == "OK":
-                out = [p["description"] for p in data.get("predictions", [])][:5]
+                preds = [p["description"] for p in data.get("predictions", [])][:5]
         except Exception:
-            out = []
+            preds = []
+        # Keep only the suggestions that really sit in Lee County, Alabama.
+        for p in preds:
+            try:
+                url = ("https://maps.googleapis.com/maps/api/geocode/json?" +
+                       urllib.parse.urlencode({"address": p, "key": key}))
+                with urllib.request.urlopen(url, timeout=6) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                out.extend(_lee_from_geocode(data.get("results", [])))
+            except Exception:
+                pass
+        out = out[:5]
         if not out:
             try:
                 url = ("https://maps.googleapis.com/maps/api/geocode/json?" +
-                       urllib.parse.urlencode({"address": q_str, "key": key}))
+                       urllib.parse.urlencode({"address": q_str + ", Lee County, AL",
+                                               "key": key}))
                 with urllib.request.urlopen(url, timeout=6) as resp:
                     data = json.loads(resp.read().decode("utf-8"))
-                out = [r["formatted_address"]
-                       for r in data.get("results", [])][:5]
+                out = _lee_from_geocode(data.get("results", []))[:5]
             except Exception:
                 out = []
     if not out:
         try:
+            s, w, n, e = LEE_BBOX
             url = "https://nominatim.openstreetmap.org/search?" + urllib.parse.urlencode(
-                {"q": q_str, "format": "json", "limit": 5})
-            req = urllib.request.Request(
+                {"q": q_str, "format": "json", "limit": 15,
+                 "viewbox": "%s,%s,%s,%s" % (w, n, e, s), "bounded": "1"})
+            data = _fetch_json(
                 url, headers={"User-Agent": "CAD-Lite/1.0 (dispatch aid)"})
-            with urllib.request.urlopen(req, timeout=6) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-            out = [d["display_name"] for d in data][:5]
+            kept = []
+            for d in data:
+                addr = d.get("address") or {}
+                if _in_lee_county(county=addr.get("county"),
+                                  state=addr.get("state")):
+                    kept.append(d["display_name"])
+                elif _in_lee_county(lat=_f(d.get("lat")),
+                                    lng=_f(d.get("lon"))):
+                    kept.append(d["display_name"])
+            out = kept[:5]
         except Exception:
             out = []
     return jsonify(ok=True, suggestions=out)
@@ -633,8 +759,53 @@ def api_validate_address():
     if not v:
         return jsonify(ok=False,
                        error="Could not find that address on the map."
-                             " Check the spelling or add the city."), 404
+                             " Check the spelling or add the city."
+                             " You can still send the call without a map check."), 404
     return jsonify(ok=True, **v)
+
+
+@app.route("/call/<int:call_id>/details", methods=["POST"])
+@staff_required
+def call_details(call_id):
+    me = current_user()
+    c = _load_call(call_id)
+    updates = {}
+    changes = []
+    address = (request.form.get("address") or "").strip()
+    if address and address != (c["address"] or "").strip():
+        lat = lng = None
+        try:
+            lat = float(request.form.get("addr_lat") or "")
+            lng = float(request.form.get("addr_lng") or "")
+        except ValueError:
+            lat = lng = None
+        fmt = (request.form.get("addr_formatted") or "").strip() or None
+        if lat is None or lng is None:
+            v = validate_call_address(address)
+            if v:
+                lat, lng, fmt = v["lat"], v["lng"], v["formatted"]
+        updates["address"] = address
+        updates["lat"] = lat
+        updates["lng"] = lng
+        updates["addr_formatted"] = fmt
+        changes.append("Address changed to %s." % (fmt or address))
+    for field, label in (("caller_name", "Caller name"),
+                         ("caller_phone", "Call back phone")):
+        val = (request.form.get(field) or "").strip()
+        old = (c[field] or "").strip() if c[field] else ""
+        if val != old:
+            updates[field] = val or None
+            changes.append("%s changed to %s." % (label, val or "(none)"))
+    if updates:
+        set_sql = ", ".join(k + " = %s" for k in updates)
+        q("UPDATE calls SET " + set_sql + " WHERE id = %s",
+          tuple(updates.values()) + (call_id,))
+        if changes:
+            q("INSERT INTO call_notes (call_id, author, text) VALUES (%s,%s,%s)",
+              (call_id, me["username"], " ".join(changes)))
+        log_audit(me["username"], "call_details",
+                  "call %s: %s" % (call_id, "; ".join(changes)))
+    return redirect(url_for("call_view", call_id=call_id))
 
 
 @app.route("/call/<int:call_id>/delete", methods=["POST"])
@@ -682,12 +853,36 @@ def call_recommend(call_id):
     return jsonify(ok=True, recommendations=recs)
 
 
+@app.route("/call/<int:call_id>/pending", methods=["POST"])
+@staff_required
+def call_pending(call_id):
+    me = current_user()
+    c = _load_call(call_id)
+    if c["status"] not in ("open", "dispatched"):
+        return ("Only open or dispatched calls can go to the pending queue.", 400)
+    q("UPDATE calls SET status = 'pending' WHERE id = %s", (call_id,))
+    q("INSERT INTO call_notes (call_id, author, text) VALUES (%s,%s,%s)",
+      (call_id, me["username"],
+       "Sent to pending queue by %s." % me["username"]))
+    log_audit(me["username"], "call_pending", "call %s" % call_id)
+    return redirect(url_for("call_view", call_id=call_id))
+
+
 @app.route("/call/<int:call_id>/notify", methods=["POST"])
 @staff_required
 def call_notify(call_id):
     me = current_user()
-    _load_call(call_id)
-    q("UPDATE calls SET notified_at = now() WHERE id = %s"
+    c = _load_call(call_id)
+    if not (c["units"] or "").strip():
+        q("UPDATE calls SET status = 'pending' WHERE id = %s"
+          " AND status <> 'pending'", (call_id,))
+        q("INSERT INTO call_notes (call_id, author, text) VALUES (%s,%s,%s)",
+          (call_id, me["username"], "No units available; call is pending."))
+        log_audit(me["username"], "call_pending", "call %s (no units)" % call_id)
+        if request.is_json:
+            return jsonify(ok=True, pending=True)
+        return redirect(url_for("call_view", call_id=call_id))
+    q("UPDATE calls SET notified_at = now(), status = 'dispatched' WHERE id = %s"
       " AND notified_at IS NULL", (call_id,))
     log_audit(me["username"], "call_sent_to_units", "call %s" % call_id)
     if request.is_json:

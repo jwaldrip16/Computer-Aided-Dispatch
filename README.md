@@ -142,3 +142,42 @@ and units cannot delete calls.
   and your mutual aid procedures always come first.
 - The checklist follows the current SOP text. If an admin edits an SOP, older
   calls show the new wording on their checklist.
+
+## Pending queue
+
+Not every call can go out right away. If no unit is available, the call waits in a
+pending queue until dispatch is ready.
+
+- New call form: "Enter call" sends it the normal way; "Send to pending queue" files it
+  in the queue instead (no tone plays, nothing goes to unit phones yet).
+- The dispatch board has a "Pending queue" section. Open calls and dispatched calls also
+  have a Queue button that moves them there.
+- Pressing "Send to units" on a call with no units assigned moves the call to the pending
+  queue automatically and writes a note ("No units available; call is pending."). Nothing
+  is sent to phones until units are assigned.
+- When you are ready, open the call from the queue, assign units, and press
+  "Send to unit phones". The call moves to Dispatched and the phones get the tone and
+  voice alert. Units never see pending calls.
+
+## Lee County addresses
+
+The dispatch area is Lee County, Alabama.
+
+- Address suggestions only fill in Lee County addresses. Google or the free OpenStreetMap
+  geocoder is checked for the county before a suggestion is shown.
+- "Check address on the map" retries with the county added, which helps rural addresses
+  like "1085 Lee County Road 166". The free map service (used when no Google key is set)
+  does not carry most county-road addresses; Google does.
+- A call can be entered and sent even when the map cannot verify the address. The typed
+  address is used as-is for the voice alert.
+
+## Changing the address or caller
+
+On a call page, staff have a "Change address or caller" card: fix the address (with a map
+check), and set the caller name and call back phone. Changes are written into the call
+notes.
+
+## Units on and off duty
+
+The dispatch board shows every unit account in two rows: On duty (green) and Off duty.
+On-duty units also show when their last location came in. It refreshes with the board.

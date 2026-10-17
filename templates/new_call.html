@@ -70,6 +70,7 @@
       {% if notify is not defined or notify %}checked{% endif %}>
       Send the tone and voice alert to unit phones now</label>
     <button type="submit" class="primary">Enter call</button>
+    <button type="submit" name="queue" value="1">Send to pending queue</button>
   </form>
 </div>
 <script>
@@ -138,7 +139,7 @@ async function checkAddress() {
   } catch (e) { valNote.textContent = 'Could not reach the map service.'; }
 }
 valBtn.addEventListener('click', checkAddress);
-addrInput.addEventListener('change', () => {
+addrInput.addEventListener('input', () => {
   if (addrInput.value.trim() !== lastChecked) clearCheck();
 });
 

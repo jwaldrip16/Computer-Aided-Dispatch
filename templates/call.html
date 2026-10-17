@@ -32,9 +32,17 @@
       <p><b>Status:</b> {{ c.status|capitalize }}</p>
       {% if c.notified_at %}
       <p><b>Sent to unit phones:</b> <span class="ts">{{ c.notified_at }}</span></p>
+      {% elif c.status == 'pending' %}
+      <p><span class="tag">pending</span> Waiting in the pending queue. Assign
+        units below, then press Send to unit phones to dispatch.</p>
       {% else %}
       <form method="post" action="{{ url_for('call_notify', call_id=c.id) }}" class="inline">
         <button type="submit" class="btn primary">Send to unit phones (tone + voice)</button>
+      </form>
+      {% endif %}
+      {% if me['role'] != 'unit' and c.status in ('open', 'dispatched') %}
+      <form method="post" action="{{ url_for('call_pending', call_id=c.id) }}" class="inline">
+        <button type="submit" class="btn">Send to pending queue</button>
       </form>
       {% endif %}
       <p><b>Units:</b> {{ c.units or 'none yet' }}</p>
@@ -94,6 +102,93 @@
     </div>
   </div>
 </div>
+
+{% if me['role'] != 'unit' %}
+<div class="card">
+  <h2>Change address or caller</h2>
+  <form method="post" action="{{ url_for('call_details', call_id=c.id) }}">
+    <label>Address or location
+      <input name="address" id="editAddress" value="{{ c.address }}" required
+        placeholder="House number and street, city, or cross streets">
+    </label>
+    <div id="editSug" class="addr-sug" style="display:none"></div>
+    <button type="button" id="editCheckBtn" class="btn">Check address on the map</button>
+    <p id="editNote" class="muted"></p>
+    <iframe id="editMap" class="callmap" style="height:200px; display:none;"
+      title="Map preview of the new address"></iframe>
+    <input type="hidden" name="addr_lat" id="editLat" value="">
+    <input type="hidden" name="addr_lng" id="editLng" value="">
+    <input type="hidden" name="addr_formatted" id="editFormatted" value="">
+    <div class="row">
+      <label>Caller name <input name="caller_name" value="{{ c.caller_name or '' }}"></label>
+      <label>Call back phone <input name="caller_phone" value="{{ c.caller_phone or '' }}"></label>
+    </div>
+    <button type="submit" class="btn primary">Save changes</button>
+  </form>
+</div>
+<script>
+const editAddr = document.getElementById('editAddress');
+let editLast = '{{ c.address|e }}';
+function editClear() {
+  document.getElementById('editLat').value = '';
+  document.getElementById('editLng').value = '';
+  document.getElementById('editFormatted').value = '';
+  document.getElementById('editNote').textContent = '';
+  const m = document.getElementById('editMap');
+  m.style.display = 'none';
+  m.src = '';
+}
+document.getElementById('editCheckBtn').addEventListener('click', async () => {
+  const note = document.getElementById('editNote');
+  note.textContent = 'Checking...';
+  const f = new FormData();
+  f.set('address', editAddr.value.trim());
+  try {
+    const r = await fetch('/api/validate-address', { method: 'POST', body: f });
+    const d = await r.json();
+    if (!d.ok) { note.textContent = d.error || 'Could not find that address.'; return; }
+    document.getElementById('editLat').value = d.lat;
+    document.getElementById('editLng').value = d.lng;
+    document.getElementById('editFormatted').value = d.formatted;
+    editLast = editAddr.value.trim();
+    note.textContent = 'Found on ' + (d.source === 'google' ? 'Google Maps' : 'OpenStreetMap') + ': ' + d.formatted;
+    const m = document.getElementById('editMap');
+    m.src = 'https://maps.google.com/maps?q=' + d.lat + ',' + d.lng + '&z=16&output=embed';
+    m.style.display = '';
+  } catch (e) { note.textContent = 'Could not reach the map service.'; }
+});
+editAddr.addEventListener('input', () => {
+  if (editAddr.value.trim() !== editLast) editClear();
+});
+let editSugT = null;
+const editSug = document.getElementById('editSug');
+function escE(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+editAddr.addEventListener('input', () => {
+  clearTimeout(editSugT);
+  const qv = editAddr.value.trim();
+  if (qv.length < 3) { editSug.innerHTML = ''; editSug.style.display = 'none'; return; }
+  editSugT = setTimeout(async () => {
+    try {
+      const r = await fetch('/api/address-suggest?q=' + encodeURIComponent(qv));
+      const d = await r.json();
+      const list = (d && d.ok && d.suggestions) ? d.suggestions : [];
+      if (!list.length) { editSug.innerHTML = ''; editSug.style.display = 'none'; return; }
+      editSug.innerHTML = list.map(s =>
+        '<button type="button" class="addr-sug-item" data-v="' + escE(s) + '">' + escE(s) + '</button>').join('');
+      editSug.style.display = '';
+    } catch (e) {}
+  }, 300);
+});
+editSug.addEventListener('click', e => {
+  const b = e.target.closest('button.addr-sug-item');
+  if (!b) return;
+  editAddr.value = b.dataset.v;
+  editSug.innerHTML = '';
+  editSug.style.display = 'none';
+  editAddr.focus();
+});
+</script>
+{% endif %}
 
 <div class="card">
   <h2>SOP checklist: {{ type_name }} call</h2>

@@ -9,12 +9,40 @@
 </div>
 <div id="shareLogPanel" class="card hidden"></div>
 
+<h2>Units</h2>
+<div class="unitrows">
+  <div>
+    <b>On duty</b>
+    <div id="onDuty" class="unitchips"></div>
+  </div>
+  <div>
+    <b>Off duty</b>
+    <div id="offDuty" class="unitchips"></div>
+  </div>
+</div>
+<style>
+  .unitrows { display:flex; gap:24px; flex-wrap:wrap; }
+  .unitchips { margin-top:6px; }
+  .u { display:inline-block; border-radius:12px; padding:3px 10px; margin:0 6px 6px 0;
+       font-size:0.9em; }
+  .u-on { background:#d9f2dd; border:1px solid #3c9a4e; }
+  .u-off { background:#eee; border:1px solid #bbb; color:#777; }
+  .uloc { opacity:0.75; }
+</style>
+
 <h2>Active calls</h2>
 <table class="calls" id="activeTable">
   <thead><tr><th>Time</th><th>Type</th><th>Nature</th><th>Address</th><th>Priority</th><th>Status</th><th>Units</th><th>Dispatcher</th><th></th></tr></thead>
   <tbody id="activeBody"></tbody>
 </table>
 <p id="noActive" class="muted hidden">No active calls.</p>
+
+<h2>Pending queue</h2>
+<table class="calls" id="pendingTable">
+  <thead><tr><th>Time</th><th>Type</th><th>Nature</th><th>Address</th><th>Priority</th><th>Status</th><th>Units</th><th>Dispatcher</th><th></th></tr></thead>
+  <tbody id="pendingBody"></tbody>
+</table>
+<p id="noPending" class="muted hidden">The pending queue is empty.</p>
 
 <h2>Closed calls (recent)</h2>
 <table class="calls" id="recentTable">
