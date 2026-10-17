@@ -497,20 +497,15 @@ def settings_page():
             q("INSERT INTO settings (key, value) VALUES (%s, %s)"
               " ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
               ("alert_" + k, "1" if request.form.get(k) else "0"))
-        gk = (request.form.get("google_key") or "").strip()
-        q("INSERT INTO settings (key, value) VALUES ('google_key', %s)"
-          " ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (gk,))
         log_audit(me["username"], "settings_saved", "call alert voice")
         return redirect(url_for("settings_page"))
-    gk = get_google_key()
     fmt = get_alert_format()
     example = alert_text(
         {"call_type": "fire", "address": "1201 1st Ave, Opelika",
          "nature": "structure fire", "notified_at": None,
          "created_at": datetime.now()},
         fmt)
-    return render_template("settings.html", me=me, fmt=fmt, example=example,
-                           google_key=gk or "")
+    return render_template("settings.html", me=me, fmt=fmt, example=example)
 
 
 @app.route("/settings/reset-calls", methods=["POST"])
@@ -525,12 +520,6 @@ def reset_calls():
 
 
 def get_google_key():
-    try:
-        r = q("SELECT value FROM settings WHERE key = 'google_key'", one=True)
-        if r and (r["value"] or "").strip():
-            return r["value"].strip()
-    except Exception:
-        pass
     return os.environ.get("GOOGLE_KEY", "").strip() or None
 
 

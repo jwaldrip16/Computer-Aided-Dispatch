@@ -90,7 +90,7 @@ Maps and address checking
 - While you type an address on the New call page, suggestions appear under the box.
   Pick one and the map check runs automatically: the address box fills in, the
   coordinates are saved with the call, and a map preview shows.
-- Suggestions use your Google Maps key when one is set (Settings or the GOOGLE_KEY
+- Suggestions use your Google Maps key when one is set (the GOOGLE_KEY
   environment variable), and fall back to the free OpenStreetMap geocoder.
 
 Type a house number and street, a city, or cross streets like
@@ -99,7 +99,8 @@ the map" and the app looks it up, shows the exact address it found with a
 map preview, and remembers it on the call. The call page shows the map and
 an "Open in Google Maps" link.
 
-Address checks use Google Maps if you paste a Google Maps key on the
+Address checks use Google Maps if the GOOGLE_KEY variable is set on
+Railway. Without it
 Settings page. Without a key they use the free OpenStreetMap service.
 
 ## Delete a call (admin only)
