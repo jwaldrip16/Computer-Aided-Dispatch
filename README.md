@@ -180,6 +180,16 @@ pending queue until dispatch is ready.
 - On the unit phone, each call shows the status of every unit on the call
   (enroute, on scene, and so on) next to their name, and the Navigate button
   opens Google Maps turn-by-turn directions straight to the call address.
+- A second call at the same address is caught as a duplicate even when it is
+  typed a little differently (extra spaces, no comma, "Second Ave" instead of
+  "2nd Ave"): the check compares the address loosely and also compares map
+  points. Closed calls are never duplicates. Send anyway from the duplicate
+  screen when it really is a new call.
+- Type a business name (like a church or a school) in the address box and the
+  app looks it up on the map itself. The call gets the map point, and the
+  address is stored as the business name plus the street and city, so the
+  unit voice says both the name and the address. This works when the map
+  knows the business; a street address typed normally is never rewritten.
 - Dispatch can put a unit on duty or off duty from the board's units list
   (Put on duty / Send off duty next to each unit). Sending a unit off duty
   clears its location, the same as when the unit does it from its own phone.

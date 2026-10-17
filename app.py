@@ -348,15 +348,31 @@ def new_call():
         except ValueError:
             addr_lat = addr_lng = None
         addr_formatted = (request.form.get("addr_formatted") or "").strip() or None
-        norm = " ".join(address.lower().split())
+        if addr_lat is None and address and not address[:1].isdigit():
+            poi = poi_lookup_in_lee(address)
+            if poi:
+                addr_lat, addr_lng, addr_formatted = poi
+                address = addr_formatted
+        if addr_lat is None and address and address[:1].isdigit():
+            v_addr = validate_call_address(address)
+            if v_addr:
+                addr_lat, addr_lng = v_addr["lat"], v_addr["lng"]
+        norm = _addr_norm(address)
         dup = None
         if request.form.get("force") != "1":
-            dup = q("SELECT id, call_type, nature, address, priority, status,"
-                    " units, dispatcher, created_at FROM calls"
-                    " WHERE status IN ('open','dispatched') AND call_type = %s"
-                    " AND lower(regexp_replace(address, '\\s+', ' ', 'g')) = %s"
-                    " ORDER BY id DESC LIMIT 1",
-                    (ctype, norm), one=True)
+            cands = q("SELECT id, call_type, nature, address, priority, status,"
+                      " units, dispatcher, created_at, lat, lng FROM calls"
+                      " WHERE status IN ('open','dispatched') AND call_type = %s"
+                      " ORDER BY id DESC LIMIT 25", (ctype,))
+            for cd in cands:
+                if _addr_norm(cd["address"] or "") == norm:
+                    dup = cd
+                    break
+                if (addr_lat is not None and cd["lat"] is not None and
+                        haversine_miles(addr_lat, addr_lng,
+                                        cd["lat"], cd["lng"]) < 0.06):
+                    dup = cd
+                    break
         if dup:
             return render_template("new_call.html", me=me, natures=NATURES,
                                    ctype=ctype, nature=nature, priority=priority,
@@ -603,6 +619,63 @@ def _geocode_in_lee(address):
     return None
 
 
+def poi_lookup_in_lee(address):
+    """Look up a typed business or place name (no street number) on the free
+    OpenStreetMap geocoder, kept to Lee County, Alabama. Returns
+    (lat, lng, name and address) or None. The name-and-address string keeps
+    the business name first, then the street and city, so the unit voice says
+    both."""
+    s_, w, n, e = LEE_BBOX
+    url = "https://nominatim.openstreetmap.org/search?" + urllib.parse.urlencode(
+        {"q": address, "format": "json", "limit": 5,
+         "viewbox": "%s,%s,%s,%s" % (w, n, e, s_), "bounded": "1"})
+    try:
+        data = _fetch_json(url, headers={"User-Agent": "CAD-Lite/1.0 (dispatch aid)"})
+    except Exception:
+        return None
+    for d in data:
+        addr = d.get("address") or {}
+        disp = (d.get("display_name") or "").lower()
+        if not (_in_lee_county(county=addr.get("county"), state=addr.get("state"))
+                or ("lee county" in disp and "alabama" in disp)):
+            continue
+        parts = [p.strip() for p in (d.get("display_name") or "").split(",")
+                 if p.strip()]
+        parts = [p for p in parts
+                 if p.lower() not in ("lee county", "united states")]
+        short = ", ".join(parts[:5])
+        try:
+            return float(d["lat"]), float(d["lon"]), short
+        except Exception:
+            continue
+    return None
+
+
+def _addr_norm(text):
+    """Loose address key for duplicate checks: lowercase, punctuation out,
+    single spaces, and street words folded to their short form ("second" to
+    "2", "2nd" to "2", "south" to "s", "road" to "rd"). Catches extra
+    spaces, missing commas, and "Second Ave" instead of "2nd Ave"."""
+    import re as _re
+    t = (text or "").lower()
+    t = _re.sub(r"[^a-z0-9 ]+", " ", t)
+    words = []
+    for w in t.split():
+        w = _re.sub(r"^(\d+)(st|nd|rd|th)$", r"\1", w)
+        w = {"first": "1", "second": "2", "third": "3", "fourth": "4",
+             "fifth": "5", "sixth": "6", "seventh": "7", "eighth": "8",
+             "ninth": "9", "tenth": "10",
+             "north": "n", "south": "s", "east": "e", "west": "w",
+             "northeast": "ne", "northwest": "nw",
+             "southeast": "se", "southwest": "sw",
+             "road": "rd", "street": "st", "avenue": "ave",
+             "drive": "dr", "lane": "ln", "boulevard": "blvd",
+             "circle": "cir", "parkway": "pkwy", "court": "ct",
+             "highway": "hwy", "trail": "trl"}.get(w, w)
+        words.append(w)
+    return " ".join(words)
+
+
 def validate_call_address(address):
     """Check an address against Google Maps when a key is set, otherwise
     the free OpenStreetMap geocoder. Rural roads like "1085 Lee County
@@ -805,9 +878,14 @@ def call_details(call_id):
             lat = lng = None
         fmt = (request.form.get("addr_formatted") or "").strip() or None
         if lat is None or lng is None:
-            v = validate_call_address(address)
-            if v:
-                lat, lng, fmt = v["lat"], v["lng"], v["formatted"]
+            if not address[:1].isdigit():
+                poi = poi_lookup_in_lee(address)
+                if poi:
+                    address, lat, lng, fmt = poi[2], poi[0], poi[1], poi[2]
+            if lat is None or lng is None:
+                v = validate_call_address(address)
+                if v:
+                    lat, lng, fmt = v["lat"], v["lng"], v["formatted"]
         updates["address"] = address
         updates["lat"] = lat
         updates["lng"] = lng
