@@ -3,10 +3,9 @@ let ON_DUTY = false, WATCH = null, LAST_PING = 0;
 const seen = new Set();
 let firstLoad = true;
 const $ = id => document.getElementById(id);
-const TYPES = {{ types|tojson }};
 
 function speak(text) {
-  if (!ARMED || !('speechSynthesis' in window)) return;
+  if (!('speechSynthesis' in window)) return;
   try {
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
@@ -16,14 +15,31 @@ function speak(text) {
 }
 
 function arm() {
+  const note = $('armNote');
+  let canSpeak = 'speechSynthesis' in window;
   try {
     AC = new (window.AudioContext || window.webkitAudioContext)();
-    AC.resume();
-    const u = new SpeechSynthesisUtterance(' ');
-    speechSynthesis.speak(u);
-    ARMED = true;
-    $('armBanner').classList.add('hidden');
-  } catch (e) {}
+    if (AC.resume) { try { AC.resume(); } catch (e) {} }
+  } catch (e) {
+    ARMED = false;
+    note.textContent = 'This phone cannot play tones in the browser. Try Chrome or update it.';
+    return;
+  }
+  ARMED = true;
+  beep(1000, 0, 0.35);
+  beep(1200, 0.5, 0.35);
+  if (canSpeak) {
+    try {
+      speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance('Tone and voice are on.');
+      speechSynthesis.speak(u);
+    } catch (e) { canSpeak = false; }
+  }
+  $('armBanner').classList.add('hidden');
+  if (!canSpeak) note.textContent =
+    'Tones are on, but this phone does not support spoken voice.';
+  $('silenceBtn').disabled = false;
+  setTimeout(() => { if (!ALERTING) $('silenceBtn').disabled = true; }, 2000);
 }
 
 function beep(freq, start, dur) {
@@ -52,6 +68,7 @@ function tone(times) {
 function stopAlert() {
   OSC.forEach(o => { try { o.stop(); } catch (e) {} });
   OSC = [];
+  ALERTING = false;
   if (VOICE_T) { clearTimeout(VOICE_T); VOICE_T = null; }
   try { speechSynthesis.cancel(); } catch (e) {}
   $('silenceBtn').disabled = true;
@@ -69,14 +86,18 @@ function callSpeech(c) {
   return parts.join('. ') + '.';
 }
 
+let ALERTING = false;
+
 function alertCall(c) {
   stopAlert();
+  ALERTING = true;
   $('silenceBtn').disabled = false;
   const secs = tone(c.priority === 'emergency' ? 4 : 3);
   if (secs) {
     VOICE_T = setTimeout(() => {
       speak(callSpeech(c));
       $('silenceBtn').disabled = true;
+      ALERTING = false;
     }, secs * 1000);
   }
 }
