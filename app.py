@@ -109,6 +109,10 @@ DEFAULT_SOPS = {
 }
 
 app = Flask(__name__)
+# Never let phones keep an old copy of the page scripts: after every deploy
+# a reload must pick up the new code (browsers otherwise hold on to the old
+# JavaScript for up to 12 hours).
+app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 
 _secret = os.environ.get("SECRET_KEY")
 if not _secret:
@@ -1190,16 +1194,27 @@ def _backfill_page_audio():
     """Pages paged before recordings existed (or whose one-time synthesis
     failed) sit in the call history with text but no audio. Regenerate the
     full recording, tone-out plus voice, from the call's own details for the
-    newest 200 of them. Runs in the background so startup never waits."""
+    newest 200 of them. Once per recording format change (page_audio_ver)
+    every stored page is regenerated too, so old broken files are replaced.
+    Runs in the background so startup never waits."""
     try:
+        ver = q("SELECT value FROM settings WHERE key = 'page_audio_ver'")
+        regen_all = not ver or (ver[0]["value"] or "") != "2"
         rows = q("SELECT p.id AS page_id, c.* FROM call_pages p"
                  " JOIN calls c ON c.id = p.call_id"
-                 " WHERE p.audio IS NULL ORDER BY p.id DESC LIMIT 200")
+                 + ("" if regen_all else " WHERE p.audio IS NULL")
+                 + " ORDER BY p.id DESC LIMIT 200")
     except Exception:
         return
     for row in rows:
         try:
             record_page_audio(row["page_id"], row)
+        except Exception:
+            pass
+    if regen_all:
+        try:
+            q("INSERT INTO settings (key, value) VALUES ('page_audio_ver', '2')"
+              " ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value")
         except Exception:
             pass
 

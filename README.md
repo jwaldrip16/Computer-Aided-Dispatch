@@ -315,3 +315,10 @@ admins can open it, and each line links to the call it is about.
 - The spoken address format is set in Settings: Street only (default), Street
   and ZIP, or the Full address. The city, county, state and country are not
   spoken unless you pick the full address.
+
+- Page files (JavaScript and CSS) are never cached for long, so a phone or
+  dispatcher computer picks up an update by simply reopening the page.
+- If a page recording cannot start on a phone, the phone falls back to its
+  own tone and voice after a moment instead of staying silent.
+- The one-time recording refresh on deploy also replaces old broken page
+  recordings (the ones that played only the tone) with the full recording.

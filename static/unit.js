@@ -107,18 +107,29 @@ function stopPageAudio() {
 function playRecording(c, onFail) {
   // The recorded page IS the page the dispatcher sent: the same tone and
   // the same voice, so the phone plays exactly what the recording holds.
+  // If the recording cannot start (blocked autoplay, a bad file), fall
+  // back to the phone's own tone and voice.
   if (!c || !c.page_id) { onFail(); return; }
   try {
     const a = new Audio('/call-page/' + c.page_id + '/audio');
     PAGE_AUDIO = a;
-    a.onerror = () => { PAGE_AUDIO = null; onFail(); };
+    let started = false, failed = false;
+    const fail = () => {
+      if (started || failed) return;
+      failed = true;
+      stopPageAudio();
+      onFail();
+    };
+    a.onplaying = () => { started = true; };
+    a.onerror = () => { if (!started) fail(); };
     a.onended = () => {
       PAGE_AUDIO = null;
       $('silenceBtn').disabled = true;
       ALERTING = false;
     };
+    setTimeout(fail, 1500);
     const p = a.play();
-    if (p && p.catch) p.catch(() => { PAGE_AUDIO = null; onFail(); });
+    if (p && p.catch) p.catch(() => fail());
   } catch (e) { PAGE_AUDIO = null; onFail(); }
 }
 
