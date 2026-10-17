@@ -38,6 +38,15 @@
       </form>
       {% endif %}
       <p><b>Units:</b> {{ c.units or 'none yet' }}</p>
+      {% if responses %}
+      <p><b>Unit responses:</b><br>
+      {% for r in responses %}
+        <span class="tag">{{ r.status }}</span> {{ r.username }}
+        {{ r.at[11:16] }}{% if r.reason %} ({{ r.reason }}){% endif %}
+        {% if r.miles is not none %} {{ r.miles }} mi{% endif %}<br>
+      {% endfor %}
+      </p>
+      {% endif %}
       {% if me['role'] == 'admin' %}
       <form method="post" action="{{ url_for('call_delete', call_id=c.id) }}" class="inline">
         <button type="submit" class="btn primary"

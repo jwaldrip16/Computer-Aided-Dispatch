@@ -56,13 +56,27 @@ function beep(freq, start, dur) {
   OSC.push(o);
 }
 
-function tone(times) {
+function toneFor(ctype, emergency) {
   if (!ARMED) return;
-  for (let i = 0; i < times; i++) {
-    beep(1000, i * 1.6, 0.7);
-    beep(1200, i * 1.6 + 0.8, 0.7);
+  const cycles = emergency ? 4 : 3;
+  let secs = 0;
+  for (let i = 0; i < cycles; i++) {
+    if (ctype === 'police') {
+      beep(1250, secs, 0.5);
+      beep(800, secs + 0.6, 0.5);
+      secs += 1.4;
+    } else if (ctype === 'fire') {
+      for (let k = 0; k < 4; k++) { beep(950, secs, 0.25); secs += 0.45; }
+      secs += 0.2;
+    } else if (ctype === 'medical') {
+      for (let k = 0; k < 3; k++) { beep(620, secs, 0.5); secs += 0.9; }
+    } else {
+      beep(1000, secs, 0.7);
+      beep(1200, secs + 0.8, 0.7);
+      secs += 1.6;
+    }
   }
-  return times * 1.6;
+  return secs;
 }
 
 function stopAlert() {
@@ -92,7 +106,7 @@ function alertCall(c) {
   stopAlert();
   ALERTING = true;
   $('silenceBtn').disabled = false;
-  const secs = tone(c.priority === 'emergency' ? 4 : 3);
+  const secs = toneFor(c.call_type, c.priority === 'emergency');
   if (secs) {
     VOICE_T = setTimeout(() => {
       speak(callSpeech(c));
@@ -116,10 +130,39 @@ function cardHtml(c) {
     '<p><b>Priority:</b> <span class="tag p-' + c.priority + '">' + c.priority + '</span>' +
     ' <b>Status:</b> ' + c.status + ' <b>Units:</b> ' + esc(c.units || '') + '</p>' +
     '<p class="muted">Came in ' + fmt(c.created_at) + '</p>' +
+    '<div class="row respbar">' +
+    (c.my_status ? '<span class="tag">' + c.my_status.replace('_', ' ') + '</span>' : '') +
+    '<button class="btn resp" data-act="enroute" data-id="' + c.id + '">Enroute</button>' +
+    '<button class="btn resp" data-act="on_scene" data-id="' + c.id + '">On scene</button>' +
+    '<button class="btn resp" data-act="transporting" data-id="' + c.id + '">Transport</button>' +
+    '<button class="btn resp" data-act="clear" data-id="' + c.id + '">Clear</button>' +
+    '<a class="btn nav" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=' +
+      encodeURIComponent((c.addr_lat != null && c.addr_lng != null) ? (c.addr_lat + ',' + c.addr_lng) : c.address) +
+    '">Navigate</a>' +
+    '</div>' +
+    '<div class="row reasonrow hidden" id="reason-' + c.id + '">' +
+    '<input id="reasonInput-' + c.id + '" placeholder="Why are you clearing? (not required)">' +
+    '</div>' +
     '</div>';
 }
 
+function keepReasons() {
+  const keep = {};
+  document.querySelectorAll('.reasonrow:not(.hidden) input').forEach(i => {
+    keep[i.id.split('-')[1]] = i.value;
+  });
+  return keep;
+}
+function restoreReasons(keep) {
+  for (const id in keep) {
+    const rr = document.getElementById('reason-' + id);
+    const inp = document.getElementById('reasonInput-' + id);
+    if (rr && inp) { rr.classList.remove('hidden'); inp.value = keep[id]; }
+  }
+}
+
 async function poll() {
+  const keep = keepReasons();
   try {
     const r = await fetch('/api/unit-board');
     if (r.status === 401) { location.href = '/login'; return; }
@@ -132,6 +175,7 @@ async function poll() {
       ? 'You are on duty. Dispatch can see your location.'
       : 'You are off duty. Dispatch cannot see your location.';
     $('activeCards').innerHTML = d.active.map(cardHtml).join('');
+    restoreReasons(keep);
     $('noActive').classList.toggle('hidden', d.active.length > 0);
     $('recentList').innerHTML = d.recent.map(c =>
       '<li>' + fmt(c.created_at) + ' <span class="tag ' + c.call_type + '">' + c.call_type + '</span> ' +
@@ -202,3 +246,25 @@ function sendFix(pos) {
 
 poll();
 setInterval(poll, 4000);
+
+document.addEventListener('click', async e => {
+  const b = e.target.closest('button.resp');
+  if (!b) return;
+  const id = b.dataset.id, act = b.dataset.act;
+  if (act === 'clear' && !b.dataset.conf) {
+    const rr = document.getElementById('reason-' + id);
+    if (rr) { rr.classList.remove('hidden'); document.getElementById('reasonInput-' + id).focus(); }
+    b.dataset.conf = '1';
+    b.textContent = 'Send clear';
+    return;
+  }
+  const inp = document.getElementById('reasonInput-' + id);
+  const reason = inp ? inp.value : '';
+  b.disabled = true;
+  try {
+    const r = await fetch('/api/unit/call-status', { method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({call_id: Number(id), status: act, reason: reason}) });
+    if (r.ok) { poll(); } else { b.disabled = false; b.textContent = 'Try again'; }
+  } catch (err) { b.disabled = false; b.textContent = 'Try again'; }
+});

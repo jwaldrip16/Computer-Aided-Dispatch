@@ -373,6 +373,7 @@ def call_view(call_id):
     c = _load_call(call_id)
     notes = q("SELECT * FROM call_notes WHERE call_id = %s ORDER BY id",
               (call_id,))
+    responses = unit_responses([call_id]).get(call_id, [])
     for n in notes:
         n["created_at"] = n["created_at"].isoformat()
     steps = q("SELECT * FROM sop_templates WHERE call_type = %s"
@@ -391,6 +392,7 @@ def call_view(call_id):
     for s in shares:
         s["url"] = "/share/" + s["token"]
     return render_template("call.html", me=me, c=call_dict(c), notes=notes,
+                           responses=responses,
                            checklist=checklist, shares=shares,
                            type_name=c["call_type"].capitalize())
 
@@ -737,9 +739,98 @@ def api_unit_board():
                " AND call_type IN (%s) AND notified_at IS NOT NULL"
                " ORDER BY closed_at DESC NULLS LAST, id DESC LIMIT 10" % ph,
                tuple(types))
-    return jsonify(active=[call_dict(r) for r in active],
+    resp = unit_responses([r["id"] for r in active])
+    active_out = []
+    for r in active:
+        d = call_dict(r)
+        entries = resp.get(r["id"], [])
+        d["responses"] = entries
+        for e in entries:
+            if e["username"] == me["username"]:
+                d["my_status"] = e["status"]
+        active_out.append(d)
+    return jsonify(active=active_out,
                    recent=[call_dict(r) for r in recent],
                    me_status=me["unit_status"] or "off_duty")
+
+
+UNIT_CALL_STATUSES = ("enroute", "on_scene", "transporting", "clear")
+
+
+def _haversine_miles(lat1, lng1, lat2, lng2):
+    r = 3958.8
+    p1, p2 = math.radians(lat1), math.radians(lat2)
+    dp, dl = p2 - p1, math.radians(lng2 - lng1)
+    a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
+    return 2 * r * math.asin(math.sqrt(a))
+
+
+def unit_responses(call_ids):
+    """Latest status per unit per call, with driving-line miles between the
+    GPS fixes recorded at each status change."""
+    if not call_ids:
+        return {}
+    ph = ",".join(["%s"] * len(call_ids))
+    rows = q("SELECT * FROM unit_call_status WHERE call_id IN (%s)"
+             " ORDER BY id" % ph, tuple(call_ids))
+    grouped = {}
+    for row in rows:
+        grouped.setdefault((row["call_id"], row["username"]), []).append(row)
+    result = {}
+    for (call_id, username), rows_ in grouped.items():
+        last = rows_[-1]
+        pts = [(r["lat"], r["lng"]) for r in rows_
+               if r["lat"] is not None and r["lng"] is not None]
+        miles = None
+        if len(pts) >= 2:
+            miles = 0.0
+            for (a, b) in zip(pts, pts[1:]):
+                miles += _haversine_miles(a[0], a[1], b[0], b[1])
+            miles = round(miles, 1)
+        result.setdefault(call_id, []).append({
+            "username": username,
+            "status": last["status"],
+            "reason": last["reason"],
+            "at": last["created_at"].isoformat(),
+            "miles": miles,
+        })
+    return result
+
+
+@app.route("/api/unit/call-status", methods=["POST"])
+@login_required
+def unit_call_status_set():
+    me = current_user()
+    if me["role"] != "unit":
+        abort(403)
+    body = request.get_json(silent=True) or {}
+    try:
+        call_id = int(body.get("call_id"))
+    except (TypeError, ValueError):
+        abort(400)
+    status = body.get("status")
+    if status not in UNIT_CALL_STATUSES:
+        abort(400)
+    c = _load_call(call_id)
+    if c["status"] == "closed":
+        return jsonify(ok=False, error="That call is already closed."), 400
+    reason = (body.get("reason") or "").strip() or None
+    q("INSERT INTO unit_call_status (call_id, username, status, reason, lat, lng)"
+      " VALUES (%s,%s,%s,%s,%s,%s)",
+      (call_id, me["username"], status, reason, me["lat"], me["lng"]))
+    if status == "enroute":
+        text = "%s is enroute." % me["username"]
+    elif status == "on_scene":
+        text = "%s is on scene." % me["username"]
+    elif status == "transporting":
+        text = "%s is transporting." % me["username"]
+    else:
+        text = "%s cleared. Reason: %s" % (me["username"], reason or "not given")
+    q("INSERT INTO call_notes (call_id, author, text) VALUES (%s,%s,%s)",
+      (call_id, me["username"], text))
+    log_audit(me["username"], "unit_call_status",
+              "call %s: %s" % (call_id, status))
+    return jsonify(ok=True)
 
 
 @app.route("/api/unit/status", methods=["POST"])

@@ -78,3 +78,8 @@ table.calls tr.flash, .card.flash { animation: flash 1.2s ease 5; }
   border: 0; border-bottom: 1px solid #eee; background: #fff; cursor: pointer;
   font-size: 15px; color: inherit; }
 .addr-sug-item:hover { background: #eef1f6; }
+
+/* unit status buttons on the unit app */
+.respbar { flex-wrap: wrap; gap: 6px; margin-top: 6px; align-items: center; }
+.respbar .cur { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
+.reasonrow input { flex: 1; min-width: 160px; }

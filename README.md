@@ -51,7 +51,21 @@ On the dispatch board a newly arrived call row flashes amber five times. On a
 unit phone, a new matching call flashes its card the same way, then the tone
 and voice alert plays.
 
-## Maps and address checking
+## Unit buttons and tones
+----------------------
+- Each active call on the unit app has Enroute, On scene, Transport, and Clear
+  buttons. Clear opens a reason box (not required); the answer shows on the call
+  page in dispatch.
+- Navigate opens Google Maps directions from the unit's current location to the
+  scene.
+- The app records the unit's GPS fix with each button press and shows the miles
+  traveled on the call page (straight-line between fixes, so treat it as close
+  to, not exactly, road miles).
+- Tones differ by call type: police is a two-tone hi/lo, fire is fast beeps,
+  medical is slow low beeps, other is the original two-tone. An emergency
+  priority call sounds one extra round.
+
+Maps and address checking
 -------------------------
 - While you type an address on the New call page, suggestions appear under the box.
   Pick one and the map check runs automatically: the address box fills in, the
