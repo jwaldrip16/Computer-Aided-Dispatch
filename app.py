@@ -388,11 +388,12 @@ def new_call():
                 (request.form.get("caller_name") or "").strip() or None,
                 (request.form.get("caller_phone") or "").strip() or None,
                 (request.form.get("notes_in") or "").strip() or None,
-                me["username"], addr_lat, addr_lng, addr_formatted]
+                me["username"], addr_lat, addr_lng, addr_formatted,
+                (request.form.get("response_channel") or "").strip() or None]
         cid = q("INSERT INTO calls (call_type, nature, address, priority,"
                 " caller_name, caller_phone, notes_in, dispatcher, lat, lng,"
-                " addr_formatted, status, notified_at)"
-                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
+                " addr_formatted, response_channel, status, notified_at)"
+                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
                 + ("'pending'" if queue else "'open'") + ","
                 + ("now()" if notify and not queue else "NULL")
                 + ") RETURNING id",
@@ -462,6 +463,11 @@ def call_view(call_id):
                    " ORDER BY username")
     for n in notes:
         n["created_at"] = n["created_at"].isoformat()
+    pages = q("SELECT * FROM call_pages WHERE call_id = %s"
+              " ORDER BY id DESC LIMIT 20", (call_id,))
+    c["pages"] = [{"units": p["units"],
+                   "paged_at_str": p["paged_at"].strftime("%a %b %d, %I:%M %p")}
+                  for p in pages]
     steps = q("SELECT * FROM sop_templates WHERE call_type = %s"
               " ORDER BY position", (c["call_type"],))
     state = {s["position"]: s for s in
@@ -892,7 +898,8 @@ def call_details(call_id):
         updates["addr_formatted"] = fmt
         changes.append("Address changed to %s." % (fmt or address))
     for field, label in (("caller_name", "Caller name"),
-                         ("caller_phone", "Call back phone")):
+                         ("caller_phone", "Call back phone"),
+                         ("response_channel", "Response channel")):
         val = (request.form.get(field) or "").strip()
         old = (c[field] or "").strip() if c[field] else ""
         if val != old:
@@ -990,6 +997,8 @@ def call_notify(call_id):
         return redirect(url_for("call_view", call_id=call_id))
     q("UPDATE calls SET notified_at = now(), status = 'dispatched',"
       " page_count = COALESCE(page_count, 0) + 1 WHERE id = %s", (call_id,))
+    q("INSERT INTO call_pages (call_id, units) VALUES (%s, %s)",
+      (call_id, c["units"]))
     log_audit(me["username"], "call_sent_to_units", "call %s" % call_id)
     if request.is_json:
         return jsonify(ok=True)
@@ -1046,6 +1055,8 @@ def call_units(call_id):
     elif units and c["notified_at"] and c["status"] != "closed":
         q("UPDATE calls SET page_count = COALESCE(page_count, 0) + 1"
           " WHERE id = %s", (call_id,))
+        q("INSERT INTO call_pages (call_id, units) VALUES (%s, %s)",
+          (call_id, units))
         q("INSERT INTO call_notes (call_id, author, text) VALUES (%s,%s,%s)",
           (call_id, me["username"],
            "Units changed to %s; assigned units re-paged." % units))

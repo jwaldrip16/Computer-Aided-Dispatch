@@ -180,6 +180,16 @@ pending queue until dispatch is ready.
 - On the unit phone, each call shows the status of every unit on the call
   (enroute, on scene, and so on) next to their name, and the Navigate button
   opens Google Maps turn-by-turn directions straight to the call address.
+- Response channel: an optional field on every call (police, fire, medical,
+  other) for the radio channel the units should respond on. It shows on the
+  dispatcher board, the call page, and the unit phone, and the unit voice says
+  "Respond on <channel>" after the nature, in both passes. Leave it empty and
+  the voice says nothing about it.
+- Every page to the units is recorded on the call page ("Pages to units"):
+  the time and the units that were paged, including automatic re-pages when
+  units change. The page voice is spoken by each unit phone, so there is no
+  audio file stored, but any unit can tap "Hear page again" on the call card
+  to hear the same page spoken again.
 - A second call at the same address is caught as a duplicate even when it is
   typed a little differently (extra spaces, no comma, "Second Ave" instead of
   "2nd Ave"): the check compares the address loosely and also compares map

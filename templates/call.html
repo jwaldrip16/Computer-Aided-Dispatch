@@ -28,6 +28,13 @@
       <p><b>Came in:</b> <span class="ts">{{ c.created_at }}</span></p>
       <p><b>Dispatcher:</b> {{ c.dispatcher or 'n/a' }}</p>
       <p><b>Caller:</b> {{ c.caller_name or 'n/a' }} {% if c.caller_phone %} &middot; {{ c.caller_phone }}{% endif %}</p>
+      {% if c.response_channel %}<p><b>Response channel:</b> {{ c.response_channel }}</p>{% endif %}
+      {% if c.pages %}
+      <p><b>Pages to units:</b></p>
+      <ul class="pages">
+      {% for p in c.pages %}<li>{{ p.paged_at_str }} &middot; {{ p.units }}</li>{% endfor %}
+      </ul>
+      {% endif %}
       {% if c.notes_in %}<p><b>Caller said:</b> {{ c.notes_in }}</p>{% endif %}
       <p><b>Status:</b> {{ c.status|capitalize }}</p>
       {% if c.notified_at %}
@@ -143,6 +150,7 @@
     <div class="row">
       <label>Caller name <input name="caller_name" value="{{ c.caller_name or '' }}"></label>
       <label>Call back phone <input name="caller_phone" value="{{ c.caller_phone or '' }}"></label>
+      <label>Response channel (optional) <input name="response_channel" value="{{ c.response_channel or '' }}"></label>
     </div>
     <button type="submit" class="btn primary">Save changes</button>
   </form>

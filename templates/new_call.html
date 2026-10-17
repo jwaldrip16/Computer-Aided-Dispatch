@@ -64,6 +64,7 @@
     <div class="row">
       <label>Caller name <input name="caller_name" value="{{ caller_name or '' }}"></label>
       <label>Call back phone <input name="caller_phone" value="{{ caller_phone or '' }}"></label>
+      <label>Response channel (optional) <input name="response_channel" value="{{ response_channel or '' }}"></label>
     </div>
     <label>What the caller says <textarea name="notes_in" rows="3">{{ notes_in or '' }}</textarea></label>
     <label class="checkrow"><input type="checkbox" name="notify" value="1"

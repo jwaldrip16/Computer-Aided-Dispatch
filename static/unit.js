@@ -106,6 +106,7 @@ function callSpeech(c) {
   if (FMT.say_type) parts.push(c.call_type == 'accident' ? 'Traffic accident with injuries' : TITLES[c.call_type] + ' call');
   parts.push('Address: ' + (c.address == null ? '' : c.address));
   if (FMT.say_nature) parts.push('Nature: ' + (c.nature || ''));
+  if (c.response_channel) parts.push('Respond on ' + c.response_channel);
   return parts.join('. ') + '.';
 }
 
@@ -132,7 +133,8 @@ function nowTime() {
 function speakAlert(c) {
   const s = callSpeech(c);
   const again = 'Address: ' + (c.address == null ? '' : c.address) + '.'
-    + ' Nature: ' + (c.nature == null ? '' : c.nature) + '.';
+    + ' Nature: ' + (c.nature == null ? '' : c.nature) + '.'
+    + (c.response_channel ? ' Respond on ' + c.response_channel + '.' : '');
   speakMany([s, again, 'The time is ' + nowTime() + '.']);
 }
 
@@ -155,7 +157,7 @@ function cardHtml(c) {
   return '<div class="card unitcard row-' + c.id + '">' +
     '<div class="row spread">' +
     '<h2><span class="tag ' + c.call_type + '">' + c.call_type + '</span> ' + esc(c.nature) + '</h2>' +
-    '<button class="btn read" data-id="' + c.id + '" data-addr="' + escAttr(c.address) + '" data-nat="' + escAttr(c.nature) + '" data-type="' + c.call_type + '" data-time="' + escAttr(c.notified_at || c.created_at || '') + '">Read</button>' +
+    '<button class="btn read" data-id="' + c.id + '" data-addr="' + escAttr(c.address) + '" data-nat="' + escAttr(c.nature) + '" data-type="' + c.call_type + '" data-time="" data-ch="' + escAttr(c.response_channel || '') + '" data-time="' + escAttr(c.notified_at || c.created_at || '') + '">Read</button>' +
     '</div>' +
     '<p><b>Address:</b> ' + esc(c.address) + '</p>' +
     '<p><b>Priority:</b> <span class="tag p-' + c.priority + '">' + c.priority + '</span>' +
@@ -167,6 +169,7 @@ function cardHtml(c) {
     '<button class="btn resp" data-act="on_scene" data-id="' + c.id + '">On scene</button>' +
     '<button class="btn resp" data-act="transporting" data-id="' + c.id + '">Transport</button>' +
     '<button class="btn resp" data-act="clear" data-id="' + c.id + '">Clear</button>' +
+    '<button class="btn read pagebtn" data-id="' + c.id + '" data-addr="' + escAttr(c.address) + '" data-nat="' + escAttr(c.nature) + '" data-type="' + c.call_type + '" data-ch="' + escAttr(c.response_channel || '') + '">Hear page again</button>' +
     '<a class="btn nav" href="https://www.google.com/maps/dir/?api=1&destination=' +
       encodeURIComponent((c.lat != null && c.lng != null) ? (c.lat + ',' + c.lng) : c.address) +
     '&travelmode=driving&dir_action=navigate">Navigate</a>' +
@@ -241,9 +244,11 @@ document.addEventListener('click', e => {
     if (FMT.say_type) parts.push(TITLES[b.dataset.type] + ' call');
     parts.push('Address: ' + b.dataset.addr);
     if (FMT.say_nature) parts.push('Nature: ' + b.dataset.nat);
+    if (b.dataset.ch) parts.push('Respond on ' + b.dataset.ch);
     const s = parts.join('. ') + '.';
     const again = 'Address: ' + b.dataset.addr + '.'
-      + ' Nature: ' + b.dataset.nat + '.';
+      + ' Nature: ' + b.dataset.nat + '.'
+      + (b.dataset.ch ? ' Respond on ' + b.dataset.ch + '.' : '');
     speakMany([s, again, 'The time is ' + nowTime() + '.']);
   }
 });

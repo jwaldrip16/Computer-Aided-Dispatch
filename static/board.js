@@ -59,7 +59,7 @@ function rowHtml(c) {
     `<td>${fmt(c.created_at)}</td>` +
     `<td><span class="tag ${c.call_type}">${c.call_type}</span></td>` +
     `<td>${esc(c.nature)}</td>` +
-    `<td>${esc(c.address)}</td>` +
+    `<td>${esc(c.address)}${c.response_channel ? ' &middot; Ch ' + esc(c.response_channel) : ''}</td>` +
     `<td><span class="tag p-${c.priority}">${c.priority}</span></td>` +
     `<td>${c.status}</td>` +
     `<td>${unitsCell}</td>` +
