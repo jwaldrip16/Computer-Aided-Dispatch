@@ -4,8 +4,9 @@
 <div class="card">
   <h1>Settings</h1>
   <h2>Call alert voice</h2>
-  <p class="muted">This formats what the unit phones say when dispatch sends a call
-  to them. The Read button on the dispatch board uses the same format.</p>
+  <p class="muted">This formats what the spoken page voice says when dispatch
+  sends a call: the voice the unit phones play, the page recording, and the
+  Read buttons all use the same format.</p>
   <form method="post">
     <label class="checkrow"><input type="checkbox" name="say_type" {% if fmt.say_type %}checked{% endif %}>
       Say the call type (fire call, police call, medical call)</label>
@@ -13,6 +14,8 @@
       Say the address</label>
     <label class="checkrow"><input type="checkbox" name="say_nature" {% if fmt.say_nature %}checked{% endif %}>
       Say the nature of the emergency</label>
+    <label class="checkrow"><input type="checkbox" name="say_channel" {% if fmt.say_channel %}checked{% endif %}>
+      Say the response channel (Respond on Fire tac)</label>
     <label class="checkrow"><input type="checkbox" name="say_time" {% if fmt.say_time %}checked{% endif %}>
       Say the time of dispatch</label>
     <p><b>Sounds like:</b> "{{ example }}"</p>

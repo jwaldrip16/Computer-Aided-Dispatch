@@ -6,6 +6,7 @@ import csv
 import io
 import json
 import math
+import re
 import time
 import os
 import urllib.parse
@@ -538,7 +539,7 @@ def call_status(call_id):
 
 
 ALERT_KEYS = {"say_type": True, "say_address": True, "say_nature": True,
-              "say_time": True}
+              "say_channel": True, "say_time": True}
 TYPE_TITLES = {"police": "Police", "fire": "Fire", "medical": "Medical",
                "other": "Call",
                "accident": "Traffic accident w/ injuries"}
@@ -561,9 +562,11 @@ def alert_text(call, fmt):
         else:
             parts.append(TYPE_TITLES.get(call["call_type"], "Call") + " call")
     if fmt.get("say_address"):
-        parts.append("Address: %s" % (call["address"] or ""))
+        parts.append("Address: %s" % _speech_addr(call.get("address")))
     if fmt.get("say_nature"):
         parts.append("Nature: %s" % (call["nature"] or ""))
+    if fmt.get("say_channel") and (call.get("response_channel") or "").strip():
+        parts.append("Respond on %s" % call["response_channel"].strip())
     if fmt.get("say_time"):
         when = call.get("notified_at") or call.get("created_at")
         parts.append("Dispatched at %s" % (when or "").strftime("%H:%M")
@@ -585,8 +588,8 @@ def settings_page():
     fmt = get_alert_format()
     example = alert_text(
         {"call_type": "fire", "address": "1201 1st Ave, Opelika",
-         "nature": "structure fire", "notified_at": None,
-         "created_at": datetime.now()},
+         "nature": "structure fire", "response_channel": "Fire tac",
+         "notified_at": None, "created_at": datetime.now()},
         fmt)
     return render_template("settings.html", me=me, fmt=fmt, example=example)
 
@@ -595,10 +598,12 @@ def settings_page():
 @admin_required
 def reset_calls():
     me = current_user()
+    q("DELETE FROM call_pages")
     q("DELETE FROM calls")
     q("SELECT setval('calls_id_seq', 1, false)")
     log_audit(me["username"], "reset_call_numbers",
-              "all calls deleted, numbering restarted at 1")
+              "all calls and their page recordings deleted, numbering"
+              " restarted at 1")
     return redirect(url_for("settings_page"))
 
 
@@ -1002,28 +1007,38 @@ PAGE_TITLES = {"police": "Police", "fire": "Fire", "medical": "Medical",
                "other": "Call", "accident": "Traffic accident with injuries"}
 
 
+def _speech_addr(a):
+    """The address as the voice says it: the map service appends
+    'United States' and the dispatcher does not need to hear the country."""
+    t = re.sub(r"\s*,?\s*(United States( of America)?|U\.S\.A\.?|USA)\s*$",
+               "", (a or ""), flags=re.IGNORECASE)
+    return t.strip().strip(",")
+
+
 def page_speech_text(c):
     """The full spoken page, the same wording the unit phones speak:
     type, address, nature, response channel, then the repeat and the time."""
+    fmt = get_alert_format()
     now_c = datetime.now(ZoneInfo("America/Chicago"))
     stamp = "The time is %02d:%02d." % (now_c.hour, now_c.minute)
     ctype = (c["call_type"] or "").strip().lower()
-    first = ""
-    if ctype:
-        title = (PAGE_TITLES.get(ctype, ctype.title())
-                 if ctype != "accident" else PAGE_TITLES["accident"])
-        first = ("%s call. " % title) if ctype != "accident" else "%s. " % title
-    first += "Address: %s." % (c["address"] or "")
-    if (c["nature"] or "").strip():
-        first += " Nature: %s." % c["nature"].strip()
-    if (c["response_channel"] or "").strip():
-        first += " Respond on %s." % c["response_channel"].strip()
-    again = "Address: %s." % (c["address"] or "")
-    if (c["nature"] or "").strip():
-        again += " Nature: %s." % c["nature"].strip()
-    if (c["response_channel"] or "").strip():
-        again += " Respond on %s." % c["response_channel"].strip()
-    return "%s %s %s" % (first, again, stamp)
+
+    def block(say_type):
+        out = ""
+        if say_type and fmt.get("say_type") and ctype:
+            title = (PAGE_TITLES.get(ctype, ctype.title())
+                     if ctype != "accident" else PAGE_TITLES["accident"])
+            out = ("%s call. " % title) if ctype != "accident" else "%s. " % title
+        if fmt.get("say_address"):
+            out += "Address: %s." % _speech_addr(c["address"])
+        if fmt.get("say_nature") and (c["nature"] or "").strip():
+            out += " Nature: %s." % c["nature"].strip()
+        if fmt.get("say_channel") and (c["response_channel"] or "").strip():
+            out += " Respond on %s." % c["response_channel"].strip()
+        return out
+
+    return ("%s %s %s" % (block(True), block(False),
+                          stamp if fmt.get("say_time") else "")).strip()
 
 
 def _tone_pcm(ctype, emergency):
@@ -1317,9 +1332,12 @@ def api_unit_board():
                " ORDER BY closed_at DESC NULLS LAST, id DESC LIMIT 50")
     recent = [r for r in recent if mine(r)][:10]
     resp = unit_responses([r["id"] for r in active])
+    pids = _latest_page_ids([r["id"] for r in active]
+                            + [r["id"] for r in recent])
     active_out = []
     for r in active:
         d = call_dict(r)
+        d["page_id"] = pids.get(r["id"])
         entries = resp.get(r["id"], [])
         d["responses"] = entries
         for e in entries:
@@ -1327,7 +1345,8 @@ def api_unit_board():
                 d["my_status"] = e["status"]
         active_out.append(d)
     return jsonify(active=active_out,
-                   recent=[call_dict(r) for r in recent],
+                   recent=[dict(call_dict(r), page_id=pids.get(r["id"]))
+                           for r in recent],
                    me_status=me["unit_status"] or "off_duty",
                    no_types=not types)
 
@@ -1341,6 +1360,17 @@ def _haversine_miles(lat1, lng1, lat2, lng2):
     dp, dl = p2 - p1, math.radians(lng2 - lng1)
     a = math.sin(dp / 2) ** 2 + math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2
     return 2 * r * math.asin(math.sqrt(a))
+
+
+def _latest_page_ids(call_ids):
+    """The newest page recording id per call, so the unit phone can play
+    the actual recording instead of a different phone voice."""
+    ids = [i for i in call_ids if i]
+    if not ids:
+        return {}
+    rows = q("SELECT call_id, MAX(id) AS pid FROM call_pages"
+             " WHERE call_id = ANY(%s) GROUP BY call_id", (ids,))
+    return {r["call_id"]: r["pid"] for r in rows}
 
 
 def unit_responses(call_ids):

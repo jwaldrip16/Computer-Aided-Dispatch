@@ -301,3 +301,13 @@ The Activity history link at the top shows the latest 200 things that happened:
 who created, sent, queued, closed or deleted calls, changed or removed units,
 re-paged, set unit statuses, and when units went on or off duty. Dispatchers and
 admins can open it, and each line links to the call it is about.
+
+- One voice everywhere: when a call is sent, the unit phone plays the page
+  recording itself (the exact tone and voice the dispatcher sent), so the
+  live page and the recording sound the same. If the recording cannot load,
+  the phone falls back to its own tone and voice.
+- The Settings voice format now also controls the spoken page voice: which
+  parts are said (call type, address, nature, response channel, time) in
+  the recording, on the phones, and on the Read buttons.
+- The spoken voice no longer says "United States" at the end of the address.
+- Reset call numbers (Settings) now also deletes every page recording.

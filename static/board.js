@@ -6,10 +6,13 @@ const $ = id => document.getElementById(id);
 function speak(text) {
   if (!VOICE_ON || !('speechSynthesis' in window)) return;
   try {
+    const busy = speechSynthesis.speaking || speechSynthesis.pending;
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.rate = 0.95;
-    speechSynthesis.speak(u);
+    // Chrome can drop an utterance queued in the same tick as a cancel
+    if (busy) setTimeout(() => { try { speechSynthesis.speak(u); } catch (e) {} }, 150);
+    else speechSynthesis.speak(u);
   } catch (e) {}
 }
 
@@ -75,12 +78,17 @@ function rowHtml(c) {
     `<td>${unitsCell}</td>` +
     `<td>${esc(c.dispatcher || '')}</td>` +
     `<td><a href="/call/${c.id}">Open</a> ` +
-    `<button class="btn read" data-id="${c.id}" data-addr="${escAttr(c.address || 'not given')}" data-nat="${escAttr(c.nature || 'not given')}">Read</button> ` +
+    `<button class="btn read" data-id="${c.id}" data-type="${c.call_type}" data-rc="${escAttr(c.response_channel || '')}" data-addr="${escAttr(spAddr(c.address) || 'not given')}" data-nat="${escAttr(c.nature || 'not given')}">Read</button> ` +
     send + queueBtn + nearBtn + unitsCtl + clrBtn + (IS_ADMIN ? ` <button class="btn del" data-id="${c.id}">Delete</button>` : '') +
     `</td>` +
     `</tr>`;
 }
 
+function spAddr(a) {
+  return String(a == null ? '' : a)
+    .replace(/,?\s*(United States( of America)?|U\.S\.A\.?|USA)\s*$/i, '')
+    .trim().replace(/,+$/, '');
+}
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
 function escAttr(s) { return esc(s).replace(/'/g, '&#39;'); }
 
@@ -147,7 +155,14 @@ $('voiceBtn').addEventListener('click', () => {
 
 document.addEventListener('click', async e => {
   const b = e.target.closest('button.read');
-  if (b) speak(`Address: ${b.dataset.addr}. Nature: ${b.dataset.nat}.`);
+  if (b) {
+    const parts = [];
+    if (FMT.say_type) parts.push(b.dataset.type == 'accident' ? 'Traffic accident with injuries' : (TITLES[b.dataset.type] || 'Call') + ' call');
+    if (FMT.say_address) parts.push('Address: ' + b.dataset.addr);
+    if (FMT.say_nature && b.dataset.nat) parts.push('Nature: ' + b.dataset.nat);
+    if (FMT.say_channel && b.dataset.rc) parts.push('Respond on ' + b.dataset.rc);
+    speak(parts.join('. ') + '.');
+  }
   const qb = e.target.closest('button.queue');
   if (qb) {
     qb.disabled = true;

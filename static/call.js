@@ -10,8 +10,16 @@ function speak(text) {
   } catch (e) {}
 }
 
+function spAddr(a) {
+  return String(a == null ? '' : a)
+    .replace(/,?\s*(United States( of America)?|U\.S\.A\.?|USA)\s*$/i, '')
+    .trim().replace(/,+$/, '');
+}
+
 $('readBtn').addEventListener('click', () => {
-  speak(`Address: ${CALL.address}. Nature: ${CALL.nature}. Type: ${CALL.call_type}. Status: ${CALL.status}.`);
+  speak(`Type: ${CALL.call_type}. Address: ${spAddr(CALL.address)}. Nature: ${CALL.nature}.`
+    + (CALL.response_channel ? ` Respond on ${CALL.response_channel}.` : '')
+    + ` Status: ${CALL.status}.`);
 });
 
 $('shareBtn').addEventListener('click', async () => {

@@ -1,4 +1,4 @@
-let ARMED = false, AC = null, OSC = [], VOICE_T = null;
+let ARMED = false, AC = null, OSC = [], VOICE_T = null, PAGE_AUDIO = null;
 let ON_DUTY = false, WATCH = null, WATCH_HIGH = false, LAST_PING = 0;
 let LOC_ERR = '', DEGRADED = false, PERM_BLOCKED = false;
 const seen = new Set();
@@ -7,6 +7,12 @@ const $ = id => document.getElementById(id);
 
 function speak(text) {
   speakMany([text]);
+}
+
+function spAddr(a) {
+  return String(a == null ? '' : a)
+    .replace(/,?\s*(United States( of America)?|U\.S\.A\.?|USA)\s*$/i, '')
+    .trim().replace(/,+$/, '');
 }
 
 function speakMany(texts) {
@@ -91,7 +97,33 @@ function toneFor(ctype, emergency) {
   return secs;
 }
 
+function stopPageAudio() {
+  if (PAGE_AUDIO) {
+    try { PAGE_AUDIO.onended = null; PAGE_AUDIO.onerror = null; PAGE_AUDIO.pause(); } catch (e) {}
+    PAGE_AUDIO = null;
+  }
+}
+
+function playRecording(c, onFail) {
+  // The recorded page IS the page the dispatcher sent: the same tone and
+  // the same voice, so the phone plays exactly what the recording holds.
+  if (!c || !c.page_id) { onFail(); return; }
+  try {
+    const a = new Audio('/call-page/' + c.page_id + '/audio');
+    PAGE_AUDIO = a;
+    a.onerror = () => { PAGE_AUDIO = null; onFail(); };
+    a.onended = () => {
+      PAGE_AUDIO = null;
+      $('silenceBtn').disabled = true;
+      ALERTING = false;
+    };
+    const p = a.play();
+    if (p && p.catch) p.catch(() => { PAGE_AUDIO = null; onFail(); });
+  } catch (e) { PAGE_AUDIO = null; onFail(); }
+}
+
 function stopAlert() {
+  stopPageAudio();
   OSC.forEach(o => { try { o.stop(); } catch (e) {} });
   OSC = [];
   ALERTING = false;
@@ -105,7 +137,7 @@ const TITLES = {police: 'Police', fire: 'Fire', medical: 'Medical', other: 'Call
 function callSpeech(c) {
   const parts = [];
   if (FMT.say_type) parts.push(c.call_type == 'accident' ? 'Traffic accident with injuries' : TITLES[c.call_type] + ' call');
-  parts.push('Address: ' + (c.address == null ? '' : c.address));
+  parts.push('Address: ' + spAddr(c.address));
   if (FMT.say_nature) parts.push('Nature: ' + (c.nature || ''));
   if (c.response_channel) parts.push('Respond on ' + c.response_channel);
   return parts.join('. ') + '.';
@@ -117,14 +149,19 @@ function alertCall(c) {
   stopAlert();
   ALERTING = true;
   $('silenceBtn').disabled = false;
-  const secs = toneFor(c.call_type, c.priority === 'emergency');
-  if (secs) {
-    VOICE_T = setTimeout(() => {
-      speakAlert(c);
+  playRecording(c, () => {
+    const secs = toneFor(c.call_type, c.priority === 'emergency');
+    if (secs) {
+      VOICE_T = setTimeout(() => {
+        speakAlert(c);
+        $('silenceBtn').disabled = true;
+        ALERTING = false;
+      }, secs * 1000);
+    } else {
       $('silenceBtn').disabled = true;
       ALERTING = false;
-    }, secs * 1000);
-  }
+    }
+  });
 }
 
 function nowTime() {
@@ -134,9 +171,23 @@ function nowTime() {
 
 function speakAlert(c) {
   const s = callSpeech(c);
-  const again = 'Address: ' + (c.address == null ? '' : c.address) + '.'
+  const again = 'Address: ' + spAddr(c.address) + '.'
     + ' Nature: ' + (c.nature == null ? '' : c.nature) + '.'
     + (c.response_channel ? ' Respond on ' + c.response_channel + '.' : '');
+  speakMany([s, again, 'The time is ' + nowTime() + '.']);
+}
+
+function readAloud(b) {
+  const addr = spAddr(b.dataset.addr);
+  const parts = [];
+  if (FMT.say_type) parts.push(TITLES[b.dataset.type] + ' call');
+  parts.push('Address: ' + addr);
+  if (FMT.say_nature) parts.push('Nature: ' + b.dataset.nat);
+  if (b.dataset.ch) parts.push('Respond on ' + b.dataset.ch);
+  const s = parts.join('. ') + '.';
+  const again = 'Address: ' + addr + '.'
+    + ' Nature: ' + b.dataset.nat + '.'
+    + (b.dataset.ch ? ' Respond on ' + b.dataset.ch + '.' : '');
   speakMany([s, again, 'The time is ' + nowTime() + '.']);
 }
 
@@ -171,7 +222,7 @@ function cardHtml(c) {
     '<button class="btn resp" data-act="on_scene" data-id="' + c.id + '">On scene</button>' +
     '<button class="btn resp" data-act="transporting" data-id="' + c.id + '">Transport</button>' +
     '<button class="btn resp" data-act="clear" data-id="' + c.id + '">Clear</button>' +
-    '<button class="btn read pagebtn" data-id="' + c.id + '" data-addr="' + escAttr(c.address) + '" data-nat="' + escAttr(c.nature) + '" data-type="' + c.call_type + '" data-ch="' + escAttr(c.response_channel || '') + '">Hear page again</button>' +
+    '<button class="btn read pagebtn" data-id="' + c.id + '" data-page="' + (c.page_id || '') + '" data-addr="' + escAttr(c.address) + '" data-nat="' + escAttr(c.nature) + '" data-type="' + c.call_type + '" data-ch="' + escAttr(c.response_channel || '') + '">Hear page again</button>' +
     '<a class="btn nav" href="https://www.google.com/maps/dir/?api=1&destination=' +
       encodeURIComponent((c.lat != null && c.lng != null) ? (c.lat + ',' + c.lng) : c.address) +
     '&travelmode=driving&dir_action=navigate">Navigate</a>' +
@@ -248,16 +299,13 @@ $('silenceBtn').addEventListener('click', stopAlert);
 document.addEventListener('click', e => {
   const b = e.target.closest('button.read');
   if (b) {
-    const parts = [];
-    if (FMT.say_type) parts.push(TITLES[b.dataset.type] + ' call');
-    parts.push('Address: ' + b.dataset.addr);
-    if (FMT.say_nature) parts.push('Nature: ' + b.dataset.nat);
-    if (b.dataset.ch) parts.push('Respond on ' + b.dataset.ch);
-    const s = parts.join('. ') + '.';
-    const again = 'Address: ' + b.dataset.addr + '.'
-      + ' Nature: ' + b.dataset.nat + '.'
-      + (b.dataset.ch ? ' Respond on ' + b.dataset.ch + '.' : '');
-    speakMany([s, again, 'The time is ' + nowTime() + '.']);
+    if (b.classList.contains('pagebtn') && b.dataset.page) {
+      ALERTING = true;
+      $('silenceBtn').disabled = false;
+      playRecording({page_id: b.dataset.page}, () => readAloud(b));
+      return;
+    }
+    readAloud(b);
   }
 });
 
