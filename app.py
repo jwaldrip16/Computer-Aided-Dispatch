@@ -421,6 +421,11 @@ def call_unit_status(call_id):
 def call_view(call_id):
     me = current_user()
     c = _load_call(call_id)
+    if me["role"] == "unit":
+        names = [t.strip().lower() for t in (c["units"] or "").split(",")
+                 if t.strip()]
+        if me["username"].lower() not in names:
+            return redirect(url_for("unit_home"))
     notes = q("SELECT * FROM call_notes WHERE call_id = %s ORDER BY id",
               (call_id,))
     responses = unit_responses([call_id]).get(call_id, [])
@@ -986,18 +991,18 @@ def api_unit_board():
     if me["role"] != "unit":
         return jsonify(active=[], recent=[],
                        me_status=me["unit_status"] or "off_duty")
-    if not types:
-        return jsonify(active=[], recent=[],
-                       me_status=me["unit_status"] or "off_duty",
-                       no_types=True)
-    ph = ",".join(["%s"] * len(types))
+    def mine(r):
+        names = [t.strip().lower() for t in (r["units"] or "").split(",")
+                 if t.strip()]
+        return me["username"].lower() in names
+
     active = q("SELECT * FROM calls WHERE status IN ('open','dispatched')"
-               " AND call_type IN (%s) AND notified_at IS NOT NULL"
-               " ORDER BY id DESC" % ph, tuple(types))
+               " AND notified_at IS NOT NULL ORDER BY id DESC")
+    active = [r for r in active if mine(r)]
     recent = q("SELECT * FROM calls WHERE status = 'closed'"
-               " AND call_type IN (%s) AND notified_at IS NOT NULL"
-               " ORDER BY closed_at DESC NULLS LAST, id DESC LIMIT 10" % ph,
-               tuple(types))
+               " AND notified_at IS NOT NULL"
+               " ORDER BY closed_at DESC NULLS LAST, id DESC LIMIT 50")
+    recent = [r for r in recent if mine(r)][:10]
     resp = unit_responses([r["id"] for r in active])
     active_out = []
     for r in active:
@@ -1010,7 +1015,8 @@ def api_unit_board():
         active_out.append(d)
     return jsonify(active=active_out,
                    recent=[call_dict(r) for r in recent],
-                   me_status=me["unit_status"] or "off_duty")
+                   me_status=me["unit_status"] or "off_duty",
+                   no_types=not types)
 
 
 UNIT_CALL_STATUSES = ("enroute", "on_scene", "transporting", "clear")

@@ -226,8 +226,9 @@ A unit phone only shows calls that match ALL of these. Check in this order:
 2. The call must be dispatched, not pending. Pending calls never go to unit phones.
    Assign units (Nearest or by hand), then press "Send to units". Assigning alone does
    not send anything.
-3. The call's type must match one of the unit's types. A fire call will not show on a
-   unit that only has police checked.
+3. Your unit must be on the call's Units list. Units see only the calls they are
+   assigned to, not every call of their type. When dispatch removes your unit from a
+   call, the call drops off your phone.
 4. The unit phone must be signed in. If the session ran out, the page goes back to the
    login screen; sign in again and re-arm the sound.
 
