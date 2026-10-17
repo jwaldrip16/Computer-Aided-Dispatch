@@ -43,7 +43,7 @@ function rowHtml(c) {
   const clrBtn = c.status !== 'closed'
     ? ` <button class="btn clr" data-id="${c.id}">Clear</button>` : '';
   const unitList = (c.units || '').split(',').map(s => s.trim()).filter(Boolean);
-  const unitsCell = (open && !c.notified_at && unitList.length)
+  const unitsCell = (open && unitList.length)
     ? unitList.map(n =>
         `<button class="btn udel" data-id="${c.id}" data-name="${escAttr(n)}" data-units="${escAttr(c.units)}" title="Remove ${escAttr(n)}">${esc(n)} &times;</button>`).join(' ')
     : esc(c.units || '');

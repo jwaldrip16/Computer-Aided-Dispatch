@@ -164,7 +164,8 @@ pending queue until dispatch is ready.
   units" on the board row). The call moves to Dispatched and the phones get the tone
   and voice alert. Units never see pending calls.
 - On an active (dispatched) call you can add more units: each active row has an
-  "Add units" box, and the call page units box still works. Saving units on a
+  "Add units" box, and the call page units box still works. You can also remove a
+  unit there: tap the X next to its name on the active row. Any unit change on a
   dispatched call re-pages the assigned units automatically (tone + voice again).
   Each active row also has a "Re-page" button that makes every unit on the call
   hear the call again.
