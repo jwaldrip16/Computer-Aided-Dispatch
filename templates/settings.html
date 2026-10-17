@@ -18,6 +18,13 @@
       Say the response channel (Respond on Fire tac)</label>
     <label class="checkrow"><input type="checkbox" name="say_time" {% if fmt.say_time %}checked{% endif %}>
       Say the time of dispatch</label>
+    <label class="checkrow">Spoken address:
+      <select name="alert_addr_fmt">
+        <option value="street" {% if addr_fmt == 'street' %}selected{% endif %}>Street only</option>
+        <option value="street_zip" {% if addr_fmt == 'street_zip' %}selected{% endif %}>Street and ZIP</option>
+        <option value="full" {% if addr_fmt == 'full' %}selected{% endif %}>Full address (street, city, state, ZIP)</option>
+      </select>
+    </label>
     <p><b>Sounds like:</b> "{{ example }}"</p>
     <button type="submit" class="primary">Save</button>
   </form>

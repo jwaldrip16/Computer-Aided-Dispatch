@@ -311,3 +311,7 @@ admins can open it, and each line links to the call it is about.
   the recording, on the phones, and on the Read buttons.
 - The spoken voice no longer says "United States" at the end of the address.
 - Reset call numbers (Settings) now also deletes every page recording.
+
+- The spoken address format is set in Settings: Street only (default), Street
+  and ZIP, or the Full address. The city, county, state and country are not
+  spoken unless you pick the full address.

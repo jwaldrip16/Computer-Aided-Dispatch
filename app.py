@@ -562,7 +562,7 @@ def alert_text(call, fmt):
         else:
             parts.append(TYPE_TITLES.get(call["call_type"], "Call") + " call")
     if fmt.get("say_address"):
-        parts.append("Address: %s" % _speech_addr(call.get("address")))
+        parts.append("Address: %s" % _speech_addr(call.get("address"), _addr_fmt()))
     if fmt.get("say_nature"):
         parts.append("Nature: %s" % (call["nature"] or ""))
     if fmt.get("say_channel") and (call.get("response_channel") or "").strip():
@@ -583,15 +583,22 @@ def settings_page():
             q("INSERT INTO settings (key, value) VALUES (%s, %s)"
               " ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
               ("alert_" + k, "1" if request.form.get(k) else "0"))
+        fmt_addr = request.form.get("alert_addr_fmt", "street")
+        if fmt_addr in ("street", "street_zip", "full"):
+            q("INSERT INTO settings (key, value) VALUES ('alert_addr_fmt', %s)"
+              " ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+              (fmt_addr,))
         log_audit(me["username"], "settings_saved", "call alert voice")
         return redirect(url_for("settings_page"))
     fmt = get_alert_format()
+    addr_fmt = _addr_fmt()
     example = alert_text(
         {"call_type": "fire", "address": "1201 1st Ave, Opelika",
          "nature": "structure fire", "response_channel": "Fire tac",
          "notified_at": None, "created_at": datetime.now()},
         fmt)
-    return render_template("settings.html", me=me, fmt=fmt, example=example)
+    return render_template("settings.html", me=me, fmt=fmt,
+                           addr_fmt=addr_fmt, example=example)
 
 
 @app.route("/settings/reset-calls", methods=["POST"])
@@ -1007,12 +1014,60 @@ PAGE_TITLES = {"police": "Police", "fire": "Fire", "medical": "Medical",
                "other": "Call", "accident": "Traffic accident with injuries"}
 
 
-def _speech_addr(a):
-    """The address as the voice says it: the map service appends
-    'United States' and the dispatcher does not need to hear the country."""
+_STATE_ZIP = re.compile(
+    r"^(alabama|al|alaska|ak|arizona|az|arkansas|ar|california|ca|colorado|co|"
+    r"connecticut|ct|delaware|de|florida|fl|georgia|ga|hawaii|hi|idaho|id|"
+    r"illinois|il|indiana|in|iowa|ia|kansas|ks|kentucky|ky|louisiana|la|maine|"
+    r"me|maryland|md|massachusetts|ma|michigan|mi|minnesota|mn|mississippi|ms|"
+    r"missouri|mo|montana|mt|nebraska|ne|nevada|nv|new hampshire|nh|new jersey|"
+    r"nj|new mexico|nm|new york|ny|north carolina|nc|north dakota|nd|ohio|oh|"
+    r"oklahoma|ok|oregon|or|pennsylvania|pa|rhode island|ri|south carolina|sc|"
+    r"south dakota|sd|tennessee|tn|texas|tx|utah|ut|vermont|vt|virginia|va|"
+    r"washington|wa|west virginia|wv|wisconsin|wi|wyoming|wy|dc)\s*"
+    r"(\d{5}(-\d{4})?)?$", re.IGNORECASE)
+
+
+def _addr_fmt():
+    """How much of the address the spoken page says: 'street' by default
+    (no city, county, state or country), changeable in Settings."""
+    rows = q("SELECT value FROM settings WHERE key = 'alert_addr_fmt'")
+    v = (rows[0]["value"] if rows else "") or "street"
+    return v if v in ("street", "street_zip", "full") else "street"
+
+
+def _speech_addr(a, mode=None):
+    """The address as the voice says it. The map service returns the full
+    'street, city, county, state zip, United States' form; the voice says
+    the street (and optionally the ZIP), never the country."""
     t = re.sub(r"\s*,?\s*(United States( of America)?|U\.S\.A\.?|USA)\s*$",
-               "", (a or ""), flags=re.IGNORECASE)
-    return t.strip().strip(",")
+               "", (a or ""), flags=re.IGNORECASE).strip().strip(",")
+    if not t:
+        return t
+    if mode is None:
+        mode = _addr_fmt()
+    if mode == "full":
+        return t
+    segs = [p.strip() for p in t.split(",") if p.strip()]
+    zipc = None
+    cut = None
+    for i in range(len(segs) - 1, -1, -1):
+        if _STATE_ZIP.match(segs[i]) or re.fullmatch(r"\d{5}(-\d{4})?", segs[i]):
+            cut = i
+            m = re.search(r"\d{5}(-\d{4})?", segs[i])
+            zipc = m.group(0) if m else None
+            break
+    keep = segs[:cut] if cut is not None else segs
+    if keep and re.fullmatch(r".+\s+county", keep[-1], re.IGNORECASE):
+        keep = keep[:-1]
+    nums = [i for i, p in enumerate(keep) if re.match(r"^\d", p)]
+    if nums:
+        keep = keep[:nums[-1] + 1]
+    elif len(keep) > 1:
+        keep = keep[:-1]
+    out = ", ".join(keep).strip().strip(",")
+    if mode == "street_zip" and zipc:
+        out = (out + ", " + zipc) if out else zipc
+    return out
 
 
 def page_speech_text(c):
@@ -1030,7 +1085,7 @@ def page_speech_text(c):
                      if ctype != "accident" else PAGE_TITLES["accident"])
             out = ("%s call. " % title) if ctype != "accident" else "%s. " % title
         if fmt.get("say_address"):
-            out += "Address: %s." % _speech_addr(c["address"])
+            out += "Address: %s." % _speech_addr(c["address"], _addr_fmt())
         if fmt.get("say_nature") and (c["nature"] or "").strip():
             out += " Nature: %s." % c["nature"].strip()
         if fmt.get("say_channel") and (c["response_channel"] or "").strip():
