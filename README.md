@@ -198,6 +198,10 @@ pending queue until dispatch is ready.
 - Calls in the pending queue can always be assigned by typing unit names
   and sent with "Send to units", whether they were never sent or were
   queued back from dispatched; adding units to a queued call never pages.
+- When the app starts it fills in recordings for older pages that have
+  none: the full recording, tone-out plus voice, is generated from the
+  call's details, so every page in the call history can be played and
+  saved. (Up to the newest 200 pages per start.)
 - The call page shows its times in Central time: Came in, Sent to unit
   phones, each line of the "Pages to units" list, and the notes.
 - Every page to the units is recorded on the call page ("Pages to units"):

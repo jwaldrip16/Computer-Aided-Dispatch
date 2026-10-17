@@ -180,6 +180,8 @@ def init_db():
                         " VALUES (%s, %s, 'admin')",
                         (ADMIN_USER, generate_password_hash(ADMIN_PASS)))
         _init_done = True
+        threading.Thread(target=_backfill_page_audio,
+                         daemon=True).start()
 
 
 def current_user():
@@ -1073,6 +1075,24 @@ def _tone_mp3(ctype, emergency):
     enc.set_channels(1)
     enc.set_quality(5)
     return bytes(enc.encode(bytes(pcm))) + bytes(enc.flush())
+
+
+def _backfill_page_audio():
+    """Pages paged before recordings existed (or whose one-time synthesis
+    failed) sit in the call history with text but no audio. Regenerate the
+    full recording, tone-out plus voice, from the call's own details for the
+    newest 200 of them. Runs in the background so startup never waits."""
+    try:
+        rows = q("SELECT p.id AS page_id, c.* FROM call_pages p"
+                 " JOIN calls c ON c.id = p.call_id"
+                 " WHERE p.audio IS NULL ORDER BY p.id DESC LIMIT 200")
+    except Exception:
+        return
+    for row in rows:
+        try:
+            record_page_audio(row["page_id"], row)
+        except Exception:
+            pass
 
 
 def record_page_audio(page_id, c):
