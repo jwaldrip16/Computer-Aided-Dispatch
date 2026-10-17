@@ -1,4 +1,5 @@
 let ARMED = false, AC = null, OSC = [], VOICE_T = null, PAGE_AUDIO = null;
+let ME_NAME = '';
 let PAGE_QUEUE = [];
 let ON_DUTY = false, WATCH = null, WATCH_HIGH = false, LAST_PING = 0;
 let LOC_ERR = '', DEGRADED = false, PERM_BLOCKED = false;
@@ -164,6 +165,7 @@ const TITLES = {police: 'Police', fire: 'Fire', medical: 'Medical', other: 'Call
 
 function callSpeech(c) {
   const parts = [];
+  if (ME_NAME) parts.push(ME_NAME + ', respond');
   if (FMT.say_type) parts.push(c.call_type == 'accident' ? 'Traffic accident with injuries' : TITLES[c.call_type] + ' call');
   parts.push('Address: ' + spAddr(c.address));
   if (FMT.say_nature) parts.push('Nature: ' + (c.nature || ''));
@@ -244,9 +246,9 @@ function cardHtml(c) {
   return '<div class="card unitcard row-' + c.id + '">' +
     '<div class="row spread">' +
     '<h2><span class="tag ' + c.call_type + '">' + c.call_type + '</span> ' + esc(c.nature) + '</h2>' +
-    '<button class="btn read" data-id="' + c.id + '" data-addr="' + escAttr(c.address) + '" data-nat="' + escAttr(c.nature) + '" data-type="' + c.call_type + '" data-time="" data-ch="' + escAttr(c.response_channel || '') + '" data-time="' + escAttr(c.notified_at || c.created_at || '') + '">Read</button>' +
+    '<button class="btn read" data-id="' + c.id + '" data-addr="' + escAttr(c.address + (c.apt ? ', Apt ' + c.apt : '')) + '" data-nat="' + escAttr(c.nature) + '" data-type="' + c.call_type + '" data-time="" data-ch="' + escAttr(c.response_channel || '') + '" data-time="' + escAttr(c.notified_at || c.created_at || '') + '">Read</button>' +
     '</div>' +
-    '<p><b>Address:</b> ' + esc(c.address) + '</p>' +
+    '<p><b>Address:</b> ' + esc(c.address) + (c.apt ? ' &middot; Apt ' + esc(c.apt) : '') + '</p>' +
     '<p><b>Priority:</b> <span class="tag p-' + c.priority + '">' + c.priority + '</span>' +
     ' <b>Status:</b> ' + c.status + ' <b>Units:</b> ' + unitList(c) + '</p>' +
     '<p class="muted">Came in ' + fmt(c.created_at) + '</p>' +
@@ -256,7 +258,7 @@ function cardHtml(c) {
     '<button class="btn resp" data-act="on_scene" data-id="' + c.id + '">On scene</button>' +
     '<button class="btn resp" data-act="transporting" data-id="' + c.id + '">Transport</button>' +
     '<button class="btn resp" data-act="clear" data-id="' + c.id + '">Clear</button>' +
-    '<button class="btn read pagebtn" data-id="' + c.id + '" data-page="' + (c.page_id || '') + '" data-addr="' + escAttr(c.address) + '" data-nat="' + escAttr(c.nature) + '" data-type="' + c.call_type + '" data-ch="' + escAttr(c.response_channel || '') + '">Hear page again</button>' +
+    '<button class="btn read pagebtn" data-id="' + c.id + '" data-page="' + (c.page_id || '') + '" data-addr="' + escAttr(c.address + (c.apt ? ', Apt ' + c.apt : '')) + '" data-nat="' + escAttr(c.nature) + '" data-type="' + c.call_type + '" data-ch="' + escAttr(c.response_channel || '') + '">Hear page again</button>' +
     '<a class="btn nav" href="https://www.google.com/maps/dir/?api=1&destination=' +
       encodeURIComponent((c.lat != null && c.lng != null) ? (c.lat + ',' + c.lng) : c.address) +
     '&travelmode=driving&dir_action=navigate">Navigate</a>' +
@@ -291,6 +293,7 @@ async function poll() {
     const nt = document.getElementById('noTypes');
     if (nt) nt.classList.toggle('hidden', !d.no_types);
     ON_DUTY = d.me_status === 'on_duty';
+    ME_NAME = d.me_name || '';
     const btn = $('dutyBtn');
     btn.textContent = ON_DUTY ? 'Go off duty' : 'Go on duty';
     btn.classList.toggle('primary', !ON_DUTY);

@@ -322,3 +322,16 @@ admins can open it, and each line links to the call it is about.
   own tone and voice after a moment instead of staying silent.
 - The one-time recording refresh on deploy also replaces old broken page
   recordings (the ones that played only the tone) with the full recording.
+
+
+### Round 38
+- The page voice opens with the units being paged: "Engine 1, Bat 1, respond. Fire call. ..." Unit
+  accounts have a Spoken name field (Users > edit); ENG1/BAT1/MED1 expand to Engine/Bat/Medic plus
+  the number, and the phone's own fallback voice says its own name.
+- Apartment, suite, or unit field on the new call form; the voice says "Apartment 12B" after the
+  street, and dispatch and the unit app show "Apt 12B".
+- The dispatch computer plays the same page recording when a call is sent, re-paged, or units change
+  (Settings checkbox, on by default; plays once per action).
+- Spoken addresses spell out map abbreviations (Pkwy becomes Parkway, also Rd, Ave, Blvd, Dr, Ln,
+  Ct, Cir, Hwy, St, Trail and directions), a bare house-number segment joins the street name, and
+  "US" endings are dropped. Old recordings regenerate once on deploy (page_audio_ver 3).

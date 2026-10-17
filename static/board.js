@@ -72,13 +72,13 @@ function rowHtml(c) {
     `<td>${fmt(c.created_at)}</td>` +
     `<td><span class="tag ${c.call_type}">${c.call_type}</span></td>` +
     `<td>${esc(c.nature)}</td>` +
-    `<td>${esc(c.address)}${c.response_channel ? ' &middot; Ch ' + esc(c.response_channel) : ''}</td>` +
+    `<td>${esc(c.address)}${c.apt ? ' &middot; Apt ' + esc(c.apt) : ''}${c.response_channel ? ' &middot; Ch ' + esc(c.response_channel) : ''}</td>` +
     `<td><span class="tag p-${c.priority}">${c.priority}</span></td>` +
     `<td>${c.status}</td>` +
     `<td>${unitsCell}</td>` +
     `<td>${esc(c.dispatcher || '')}</td>` +
     `<td><a href="/call/${c.id}">Open</a> ` +
-    `<button class="btn read" data-id="${c.id}" data-type="${c.call_type}" data-rc="${escAttr(c.response_channel || '')}" data-addr="${escAttr(spAddr(c.address) || 'not given')}" data-nat="${escAttr(c.nature || 'not given')}">Read</button> ` +
+    `<button class="btn read" data-id="${c.id}" data-type="${c.call_type}" data-rc="${escAttr(c.response_channel || '')}" data-addr="${escAttr(spAddr(c.address) + (c.apt ? ', Apt ' + c.apt : '') || 'not given')}" data-nat="${escAttr(c.nature || 'not given')}">Read</button> ` +
     send + queueBtn + nearBtn + unitsCtl + clrBtn + (IS_ADMIN ? ` <button class="btn del" data-id="${c.id}">Delete</button>` : '') +
     `</td>` +
     `</tr>`;
@@ -153,6 +153,26 @@ $('voiceBtn').addEventListener('click', () => {
   if (VOICE_ON) speak('Voice alerts on.');
 });
 
+let DPLAY_A = null;
+function playDispatchPage(pid) {
+  if (!pid) return;
+  try {
+    if (DPLAY_A) { try { DPLAY_A.pause(); } catch (e2) {} }
+    DPLAY_A = new Audio('/call-page/' + pid + '/audio');
+    DPLAY_A.play().catch(() => {});
+  } catch (e3) {}
+}
+async function playAfterPage(url, body) {
+  try {
+    const res = await fetch(url + (url.indexOf('?') >= 0 ? '&' : '?') + 'json=1',
+      body ? {method: 'POST', body: body} : {method: 'POST'});
+    if (!res.ok) { alert(await res.text()); return; }
+    if (DPLAY) {
+      const d = await res.json().catch(() => null);
+      playDispatchPage(d && d.page_id);
+    }
+  } catch (err) {}
+}
 document.addEventListener('click', async e => {
   const b = e.target.closest('button.read');
   if (b) {
@@ -172,7 +192,7 @@ document.addEventListener('click', async e => {
   const n = e.target.closest('button.notify');
   if (n) {
     n.disabled = true;
-    await fetch(`/call/${n.dataset.id}/notify`, {method: 'POST'});
+    await playAfterPage(`/call/${n.dataset.id}/notify`);
     poll();
   }
   const ba = e.target.closest('button.bassign');
@@ -181,8 +201,7 @@ document.addEventListener('click', async e => {
     ba.disabled = true;
     const fd = new FormData();
     fd.set('units', inp.value.trim());
-    const res = await fetch(`/call/${ba.dataset.id}/units`, {method: 'POST', body: fd});
-    if (!res.ok) alert(await res.text());
+    await playAfterPage(`/call/${ba.dataset.id}/units`, fd);
     poll();
   }
   const bu = e.target.closest('button.badd');
@@ -194,8 +213,7 @@ document.addEventListener('click', async e => {
     const fd = new FormData();
     fd.set('units', v);
     fd.set('mode', 'add');
-    const res = await fetch(`/call/${bu.dataset.id}/units`, {method: 'POST', body: fd});
-    if (!res.ok) alert(await res.text());
+    await playAfterPage(`/call/${bu.dataset.id}/units`, fd);
     poll();
   }
   const ud = e.target.closest('button.udel');
@@ -205,7 +223,7 @@ document.addEventListener('click', async e => {
       .filter(Boolean).filter(n => n !== ud.dataset.name);
     const fd = new FormData();
     fd.set('units', rest.join(', '));
-    await fetch(`/call/${ud.dataset.id}/units`, {method: 'POST', body: fd});
+    await playAfterPage(`/call/${ud.dataset.id}/units`, fd);
     poll();
   }
   const du = e.target.closest('button.dutybtn');
@@ -221,7 +239,7 @@ document.addEventListener('click', async e => {
   const bp = e.target.closest('button.bpage');
   if (bp) {
     bp.disabled = true;
-    await fetch(`/call/${bp.dataset.id}/notify`, {method: 'POST'});
+    await playAfterPage(`/call/${bp.dataset.id}/notify`);
     poll();
   }
   const cl = e.target.closest('button.clr');

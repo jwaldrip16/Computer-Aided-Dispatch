@@ -18,6 +18,8 @@
       Say the response channel (Respond on Fire tac)</label>
     <label class="checkrow"><input type="checkbox" name="say_time" {% if fmt.say_time %}checked{% endif %}>
       Say the time of dispatch</label>
+    <label class="checkrow"><input type="checkbox" name="dispatch_play_audio" {% if dplay %}checked{% endif %}>
+      Play the page on this computer when a call is sent</label>
     <label class="checkrow">Spoken address:
       <select name="alert_addr_fmt">
         <option value="street" {% if addr_fmt == 'street' %}selected{% endif %}>Street only</option>

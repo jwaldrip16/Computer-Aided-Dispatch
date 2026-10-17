@@ -53,6 +53,7 @@
 
 <script>
   const FMT = {{ alert_fmt|tojson }};
+  const DPLAY = {{ dplay|tojson }};
   const IS_ADMIN = {{ 'true' if me['role'] == 'admin' else 'false' }};
 </script>
 <script src="{{ url_for('static', filename='board.js') }}"></script>

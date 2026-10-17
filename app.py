@@ -170,6 +170,9 @@ def init_db():
                         " page_text TEXT")
             cur.execute("ALTER TABLE call_pages ADD COLUMN IF NOT EXISTS"
                         " audio BYTEA")
+            cur.execute("ALTER TABLE calls ADD COLUMN IF NOT EXISTS apt TEXT")
+            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS"
+                        " speech_name TEXT")
             cur.execute("SELECT count(*) AS n FROM sop_templates")
             if cur.fetchone()[0] == 0:
                 for ctype, steps in DEFAULT_SOPS.items():
@@ -309,8 +312,11 @@ def logout():
 @login_required
 def board():
     me = current_user()
+    dp = q("SELECT value FROM settings WHERE key = 'dispatch_play_audio'",
+           one=True)
     return render_template("board.html", me=me, natures=NATURES,
-                           alert_fmt=get_alert_format())
+                           alert_fmt=get_alert_format(),
+                           dplay=not dp or (dp["value"] or "") != "0")
 
 
 @app.route("/api/board")
@@ -332,7 +338,9 @@ def api_board():
                   if r["loc_updated"] else None}
                  for r in units]
     resp = unit_responses([r["id"] for r in active])
-    return jsonify(active=[dict(call_dict(r), responses=resp.get(r["id"], []))
+    pids = _latest_page_ids([r["id"] for r in active])
+    return jsonify(active=[dict(call_dict(r), responses=resp.get(r["id"], []),
+                                page_id=pids.get(r["id"]))
                            for r in active],
                    pending=[call_dict(r) for r in pending],
                    recent=[call_dict(r) for r in recent],
@@ -349,6 +357,7 @@ def new_call():
             ctype = "other"
         nature = (request.form.get("nature") or "").strip() or "not given"
         address = (request.form.get("address") or "").strip()
+        apt = (request.form.get("apt") or "").strip()[:40] or None
         priority = request.form.get("priority") or "routine"
         if priority not in PRIORITIES:
             priority = "routine"
@@ -398,16 +407,16 @@ def new_call():
                                    error="")
         notify = request.form.get("notify") == "1"
         queue = request.form.get("queue") == "1"
-        vals = [ctype, nature, address, priority,
+        vals = [ctype, nature, address, apt, priority,
                 (request.form.get("caller_name") or "").strip() or None,
                 (request.form.get("caller_phone") or "").strip() or None,
                 (request.form.get("notes_in") or "").strip() or None,
                 me["username"], addr_lat, addr_lng, addr_formatted,
                 (request.form.get("response_channel") or "").strip() or None]
-        cid = q("INSERT INTO calls (call_type, nature, address, priority,"
+        cid = q("INSERT INTO calls (call_type, nature, address, apt, priority,"
                 " caller_name, caller_phone, notes_in, dispatcher, lat, lng,"
                 " addr_formatted, response_channel, status, notified_at)"
-                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
+                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
                 + ("'pending'" if queue else "'open'") + ","
                 + ("now()" if notify and not queue else "NULL")
                 + ") RETURNING id",
@@ -504,7 +513,11 @@ def call_view(call_id):
         s["url"] = "/share/" + s["token"]
     came_in = c["created_at"].astimezone(central).strftime("%a %b %d, %I:%M:%S %p") if c["created_at"] else ""
     notified = c["notified_at"].astimezone(central).strftime("%a %b %d, %I:%M:%S %p") if c["notified_at"] else ""
+    dp = q("SELECT value FROM settings WHERE key = 'dispatch_play_audio'",
+           one=True)
     return render_template("call.html", me=me, came_in_str=came_in,
+                           dplay=not dp or (dp["value"] or "") != "0",
+                           play=request.args.get("play", type=int),
                            notified_str=notified, c=call_dict(c), notes=notes,
                            responses=responses, unit_users=unit_users,
                            checklist=checklist, shares=shares,
@@ -566,7 +579,11 @@ def alert_text(call, fmt):
         else:
             parts.append(TYPE_TITLES.get(call["call_type"], "Call") + " call")
     if fmt.get("say_address"):
-        parts.append("Address: %s" % _speech_addr(call.get("address"), _addr_fmt()))
+        addr = _speech_addr(call.get("address"), _addr_fmt())
+        apt = _apt_speech(call.get("apt"))
+        if apt:
+            addr = (addr + ", " + apt) if addr else apt
+        parts.append("Address: %s" % addr)
     if fmt.get("say_nature"):
         parts.append("Nature: %s" % (call["nature"] or ""))
     if fmt.get("say_channel") and (call.get("response_channel") or "").strip():
@@ -587,6 +604,9 @@ def settings_page():
             q("INSERT INTO settings (key, value) VALUES (%s, %s)"
               " ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
               ("alert_" + k, "1" if request.form.get(k) else "0"))
+        q("INSERT INTO settings (key, value) VALUES ('dispatch_play_audio', %s)"
+          " ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+          ("1" if request.form.get("dispatch_play_audio") else "0",))
         fmt_addr = request.form.get("alert_addr_fmt", "street")
         if fmt_addr in ("street", "street_zip", "full"):
             q("INSERT INTO settings (key, value) VALUES ('alert_addr_fmt', %s)"
@@ -596,13 +616,16 @@ def settings_page():
         return redirect(url_for("settings_page"))
     fmt = get_alert_format()
     addr_fmt = _addr_fmt()
+    dplay_row = q("SELECT value FROM settings WHERE key = 'dispatch_play_audio'",
+                  one=True)
+    dplay = not dplay_row or (dplay_row["value"] or "") != "0"
     example = alert_text(
         {"call_type": "fire", "address": "1201 1st Ave, Opelika",
          "nature": "structure fire", "response_channel": "Fire tac",
          "notified_at": None, "created_at": datetime.now()},
         fmt)
     return render_template("settings.html", me=me, fmt=fmt,
-                           addr_fmt=addr_fmt, example=example)
+                           addr_fmt=addr_fmt, example=example, dplay=dplay)
 
 
 @app.route("/settings/reset-calls", methods=["POST"])
@@ -1039,11 +1062,75 @@ def _addr_fmt():
     return v if v in ("street", "street_zip", "full") else "street"
 
 
+_STREET_WORDS = {
+    "pkwy": "Parkway", "pky": "Parkway", "rd": "Road", "ave": "Avenue",
+    "blvd": "Boulevard", "dr": "Drive", "ln": "Lane", "ct": "Court",
+    "cir": "Circle", "hwy": "Highway", "trl": "Trail", "ter": "Terrace",
+    "pl": "Place", "st": "Street", "bnd": "Bend", "xing": "Crossing",
+    "n": "North", "s": "South", "e": "East", "w": "West",
+    "ne": "Northeast", "nw": "Northwest", "se": "Southeast", "sw": "Southwest",
+}
+
+
+def _expand_street_words(s):
+    """Spell out the street-type and direction abbreviations the map
+    services write (Pkwy, Rd, Ave, NW) so the voice says the whole
+    street name."""
+    ws = (s or "").split()
+    while ws:
+        tok = ws[-1].strip(".,#").lower()
+        if tok not in _STREET_WORDS:
+            break
+        old = ws.pop()
+        core = old.strip(".,#")
+        pre = old[:len(old) - len(core)] if core else ""
+        ws.append(pre + _STREET_WORDS[tok])
+    return " ".join(ws)
+
+
+_UNIT_WORDS = {
+    "ENG": "Engine", "BAT": "Bat", "MED": "Medic", "TRK": "Truck",
+    "RES": "Rescue", "LAD": "Ladder", "SQ": "Squad", "CHF": "Chief",
+    "CMD": "Command", "UT": "Utility", "BRV": "Brush", "TWR": "Tower",
+    "TAC": "Tac", "EQ": "Equipment", "ATV": "A T V", "UTV": "U T V",
+    "WAT": "Water", "PAT": "Patrol", "DUT": "Duty", "KIT": "Kitchen",
+}
+
+
+def unit_speech_name(username):
+    """How the page voice says a unit's name: the unit's own Spoken name
+    from the account when one is set, otherwise Engine 1 for ENG1,
+    Medic 2 for MED2, and so on."""
+    u = (username or "").strip()
+    if not u:
+        return ""
+    try:
+        rows = q("SELECT speech_name FROM users"
+                 " WHERE lower(username) = lower(%s)", (u,))
+        sp = ((rows[0]["speech_name"] or "").strip()) if rows else ""
+        if sp:
+            return sp
+    except Exception:
+        pass
+    m = re.match(r"^([A-Za-z]+)0*(\d+)$", u)
+    if m and m.group(1).upper() in _UNIT_WORDS:
+        return "%s %s" % (_UNIT_WORDS[m.group(1).upper()], m.group(2))
+    return u
+
+
+def _apt_speech(v):
+    """'Apt 12' or '#4B' becomes 'Apartment 4B' as the voice says it."""
+    t = re.sub(r"^(apt|apartment|unit|ste|suite)\.?\s*", "", (v or "").strip(),
+               flags=re.IGNORECASE)
+    t = t.lstrip("#").strip()
+    return ("Apartment %s" % t) if t else ""
+
+
 def _speech_addr(a, mode=None):
     """The address as the voice says it. The map service returns the full
     'street, city, county, state zip, United States' form; the voice says
     the street (and optionally the ZIP), never the country."""
-    t = re.sub(r"\s*,?\s*(United States( of America)?|U\.S\.A\.?|USA)\s*$",
+    t = re.sub(r"\s*,?\s*(United States( of America)?|U\.S\.A\.?|USA|U\.?S\.)\s*$",
                "", (a or ""), flags=re.IGNORECASE).strip().strip(",")
     if not t:
         return t
@@ -1063,24 +1150,45 @@ def _speech_addr(a, mode=None):
     keep = segs[:cut] if cut is not None else segs
     if keep and re.fullmatch(r".+\s+county", keep[-1], re.IGNORECASE):
         keep = keep[:-1]
+    merged = []
+    i = 0
+    while i < len(keep):
+        p = keep[i]
+        nxt = keep[i + 1] if i + 1 < len(keep) else None
+        if re.fullmatch(r"\d+[A-Za-z]?", p) and nxt:
+            merged.append(p + " " + nxt)
+            i += 2
+        else:
+            merged.append(p)
+            i += 1
+    keep = merged
     nums = [i for i, p in enumerate(keep) if re.match(r"^\d", p)]
     if nums:
         keep = keep[:nums[-1] + 1]
     elif len(keep) > 1:
         keep = keep[:-1]
-    out = ", ".join(keep).strip().strip(",")
+    out = _expand_street_words(", ".join(keep).strip().strip(","))
     if mode == "street_zip" and zipc:
         out = (out + ", " + zipc) if out else zipc
     return out
 
 
-def page_speech_text(c):
-    """The full spoken page, the same wording the unit phones speak:
-    type, address, nature, response channel, then the repeat and the time."""
+def page_speech_text(c, units=None):
+    """The full spoken page, the same wording the unit phones speak: the
+    units being paged first, then type, address (with any apartment),
+    nature, response channel, then the repeat and the time."""
     fmt = get_alert_format()
     now_c = datetime.now(ZoneInfo("America/Chicago"))
     stamp = "The time is %02d:%02d." % (now_c.hour, now_c.minute)
     ctype = (c["call_type"] or "").strip().lower()
+    names = []
+    for u in (units if units is not None
+              else [t.strip() for t in (c.get("units") or "").split(",")
+                    if t.strip()]):
+        sp = unit_speech_name(u)
+        if sp and sp not in names:
+            names.append(sp)
+    lead = (", ".join(names) + ", respond. ") if names else ""
 
     def block(say_type):
         out = ""
@@ -1089,15 +1197,19 @@ def page_speech_text(c):
                      if ctype != "accident" else PAGE_TITLES["accident"])
             out = ("%s call. " % title) if ctype != "accident" else "%s. " % title
         if fmt.get("say_address"):
-            out += "Address: %s." % _speech_addr(c["address"], _addr_fmt())
+            addr = _speech_addr(c["address"], _addr_fmt())
+            apt = _apt_speech(c.get("apt"))
+            if apt:
+                addr = (addr + ", " + apt) if addr else apt
+            out += "Address: %s." % addr
         if fmt.get("say_nature") and (c["nature"] or "").strip():
             out += " Nature: %s." % c["nature"].strip()
         if fmt.get("say_channel") and (c["response_channel"] or "").strip():
             out += " Respond on %s." % c["response_channel"].strip()
         return out
 
-    return ("%s %s %s" % (block(True), block(False),
-                          stamp if fmt.get("say_time") else "")).strip()
+    tail = block(False) + (" " + stamp if fmt.get("say_time") else "")
+    return ("%s%s %s" % (lead, block(True), tail)).strip()
 
 
 def _tone_pcm(ctype, emergency):
@@ -1199,7 +1311,7 @@ def _backfill_page_audio():
     Runs in the background so startup never waits."""
     try:
         ver = q("SELECT value FROM settings WHERE key = 'page_audio_ver'")
-        regen_all = not ver or (ver[0]["value"] or "") != "2"
+        regen_all = not ver or (ver[0]["value"] or "") != "3"
         rows = q("SELECT p.id AS page_id, c.* FROM call_pages p"
                  " JOIN calls c ON c.id = p.call_id"
                  + ("" if regen_all else " WHERE p.audio IS NULL")
@@ -1213,20 +1325,21 @@ def _backfill_page_audio():
             pass
     if regen_all:
         try:
-            q("INSERT INTO settings (key, value) VALUES ('page_audio_ver', '2')"
+            q("INSERT INTO settings (key, value) VALUES ('page_audio_ver', '3')"
               " ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value")
         except Exception:
             pass
 
 
-def record_page_audio(page_id, c):
+def record_page_audio(page_id, c, units=None):
     """Synthesize and store an MP3 recording of this page. Never fails the
     page itself: on any error the row just keeps its text, no audio."""
     try:
+        text = page_speech_text(c, units)
         from gtts import gTTS
         import io as _io
         buf = _io.BytesIO()
-        gTTS(text=page_speech_text(c), lang="en").write_to_fp(buf)
+        gTTS(text=text, lang="en").write_to_fp(buf)
         voice = buf.getvalue()
         ctype = (c["call_type"] or "other").strip().lower()
         emergency = c["priority"] == "emergency"
@@ -1241,10 +1354,10 @@ def record_page_audio(page_id, c):
         if audio is None:
             audio = (_tone_mp3(ctype, emergency) or b"") + voice
         q("UPDATE call_pages SET page_text = %s, audio = %s WHERE id = %s",
-          (page_speech_text(c), audio, page_id))
+          (text, audio, page_id))
     except Exception:
         q("UPDATE call_pages SET page_text = %s WHERE id = %s",
-          (page_speech_text(c), page_id))
+          (page_speech_text(c, units), page_id))
 
 
 @app.route("/call/<int:call_id>/notify", methods=["POST"])
@@ -1258,19 +1371,20 @@ def call_notify(call_id):
         q("INSERT INTO call_notes (call_id, author, text) VALUES (%s,%s,%s)",
           (call_id, me["username"], "No units available; call is pending."))
         log_audit(me["username"], "call_pending", "call %s (no units)" % call_id)
-        if request.is_json:
+        if request.is_json or request.args.get("json") == "1":
             return jsonify(ok=True, pending=True)
         return redirect(url_for("call_view", call_id=call_id))
     q("UPDATE calls SET notified_at = now(), status = 'dispatched',"
       " page_count = COALESCE(page_count, 0) + 1 WHERE id = %s", (call_id,))
     q("INSERT INTO call_pages (call_id, units) VALUES (%s, %s)",
       (call_id, c["units"]))
-    record_page_audio(q("SELECT id FROM call_pages WHERE call_id = %s"
-                        " ORDER BY id DESC LIMIT 1", (call_id,))[0]["id"], c)
+    pid = q("SELECT id FROM call_pages WHERE call_id = %s"
+            " ORDER BY id DESC LIMIT 1", (call_id,))[0]["id"]
+    record_page_audio(pid, c)
     log_audit(me["username"], "call_sent_to_units", "call %s" % call_id)
-    if request.is_json:
-        return jsonify(ok=True)
-    return redirect(url_for("call_view", call_id=call_id))
+    if request.is_json or request.args.get("json") == "1":
+        return jsonify(ok=True, page_id=pid)
+    return redirect(url_for("call_view", call_id=call_id, play=pid))
 
 
 @app.route("/call-page/<int:page_id>/audio")
@@ -1299,6 +1413,7 @@ def call_note(call_id):
 @staff_required
 def call_units(call_id):
     me = current_user()
+    pid = None
     c = _load_call(call_id)
     units = (request.form.get("units") or "").strip()
     mode = (request.form.get("mode") or "").strip()
@@ -1334,9 +1449,11 @@ def call_units(call_id):
           " WHERE id = %s", (call_id,))
         q("INSERT INTO call_pages (call_id, units) VALUES (%s, %s)",
           (call_id, units))
-        record_page_audio(q("SELECT id FROM call_pages WHERE call_id = %s"
-                            " ORDER BY id DESC LIMIT 1",
-                            (call_id,))[0]["id"], c)
+        pid = q("SELECT id FROM call_pages WHERE call_id = %s"
+                " ORDER BY id DESC LIMIT 1", (call_id,))[0]["id"]
+        record_page_audio(pid, c,
+                          units=[t.strip() for t in units.split(",")
+                                 if t.strip()])
         q("INSERT INTO call_notes (call_id, author, text) VALUES (%s,%s,%s)",
           (call_id, me["username"],
            "Units changed to %s; assigned units re-paged." % units))
@@ -1344,6 +1461,8 @@ def call_units(call_id):
                   % (call_id, units))
     else:
         log_audit(me["username"], "units", "call %s units: %s" % (call_id, units))
+    if request.is_json or request.args.get("json") == "1":
+        return jsonify(ok=True, page_id=pid)
     return redirect(url_for("call_view", call_id=call_id))
 
 
@@ -1418,6 +1537,7 @@ def api_unit_board():
                    recent=[dict(call_dict(r), page_id=pids.get(r["id"]))
                            for r in recent],
                    me_status=me["unit_status"] or "off_duty",
+                   me_name=unit_speech_name(me["username"]),
                    no_types=not types)
 
 
@@ -1755,6 +1875,12 @@ def user_edit(uid):
             sets = ["username = %s", "role = %s",
                     "unit_types = %s" if role == "unit" else "unit_types = NULL"]
             vals = [username, role] + ([utypes] if role == "unit" else [])
+            if role == "unit":
+                sets.append("speech_name = %s")
+                vals.append((request.form.get("speech_name") or "").strip()[:60]
+                            or None)
+            else:
+                sets.append("speech_name = NULL")
             if password:
                 sets.append("pass_hash = %s")
                 vals.append(generate_password_hash(password))

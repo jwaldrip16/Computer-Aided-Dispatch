@@ -16,6 +16,8 @@
       </select>
     </label>
     <div id="unitTypePick" {% if u.role != 'unit' %}style="display:none"{% endif %}>
+      <label>Spoken name (how the page voice says this unit, e.g. Engine 1)
+        <input name="speech_name" value="{{ u.speech_name or '' }}" maxlength="60"></label>
       <b>Responds to</b>
       {% for t in ['police','fire','medical','other'] %}
       <label class="checkrow"><input type="checkbox" name="unit_types" value="{{ t }}"
