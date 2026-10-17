@@ -1,4 +1,5 @@
 let ARMED = false, AC = null, OSC = [], VOICE_T = null, PAGE_AUDIO = null;
+let PAGE_QUEUE = [];
 let ON_DUTY = false, WATCH = null, WATCH_HIGH = false, LAST_PING = 0;
 let LOC_ERR = '', DEGRADED = false, PERM_BLOCKED = false;
 const seen = new Set();
@@ -15,16 +16,25 @@ function spAddr(a) {
     .trim().replace(/,+$/, '');
 }
 
-function speakMany(texts) {
-  if (!('speechSynthesis' in window)) return;
+function speakMany(texts, onDone) {
+  if (!('speechSynthesis' in window)) { if (onDone) setTimeout(onDone, 800); return; }
   try {
     speechSynthesis.cancel();
+    let last = null, fired = false;
+    const done = () => { if (fired) return; fired = true; if (onDone) onDone(); };
     for (const t of texts) {
       const u = new SpeechSynthesisUtterance(t);
       u.rate = 0.95;
+      last = u;
       speechSynthesis.speak(u);
     }
-  } catch (e) {}
+    if (last) {
+      last.onend = done;
+      // if the phone never fires onend, move on after a generous estimate
+      const est = texts.reduce((a, t) => a + t.length, 0) * 0.085 + 4;
+      setTimeout(done, est * 1000);
+    } else if (onDone) onDone();
+  } catch (e) { if (onDone) setTimeout(onDone, 500); }
 }
 
 function arm() {
@@ -126,6 +136,7 @@ function playRecording(c, onFail) {
       PAGE_AUDIO = null;
       $('silenceBtn').disabled = true;
       ALERTING = false;
+      playNext();
     };
     setTimeout(fail, 1500);
     const p = a.play();
@@ -133,14 +144,20 @@ function playRecording(c, onFail) {
   } catch (e) { PAGE_AUDIO = null; onFail(); }
 }
 
-function stopAlert() {
+function stopAlert(keepQueue) {
   stopPageAudio();
   OSC.forEach(o => { try { o.stop(); } catch (e) {} });
   OSC = [];
   ALERTING = false;
   if (VOICE_T) { clearTimeout(VOICE_T); VOICE_T = null; }
   try { speechSynthesis.cancel(); } catch (e) {}
+  if (!keepQueue) PAGE_QUEUE = [];
   $('silenceBtn').disabled = true;
+}
+
+function playNext() {
+  const nxt = PAGE_QUEUE.shift();
+  if (nxt) alertCall(nxt);
 }
 
 const TITLES = {police: 'Police', fire: 'Fire', medical: 'Medical', other: 'Call', accident: 'Traffic accident w/ injuries'};
@@ -157,20 +174,26 @@ function callSpeech(c) {
 let ALERTING = false;
 
 function alertCall(c) {
-  stopAlert();
+  // A page that arrives while another is still playing waits its turn:
+  // the phone announces each call one after the other, tone and voice.
+  if (ALERTING) { PAGE_QUEUE.push(c); return; }
+  stopAlert(true);
   ALERTING = true;
   $('silenceBtn').disabled = false;
   playRecording(c, () => {
     const secs = toneFor(c.call_type, c.priority === 'emergency');
     if (secs) {
       VOICE_T = setTimeout(() => {
-        speakAlert(c);
-        $('silenceBtn').disabled = true;
-        ALERTING = false;
+        speakAlert(c, () => {
+          $('silenceBtn').disabled = true;
+          ALERTING = false;
+          playNext();
+        });
       }, secs * 1000);
     } else {
       $('silenceBtn').disabled = true;
       ALERTING = false;
+      playNext();
     }
   });
 }
@@ -180,12 +203,12 @@ function nowTime() {
   return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2);
 }
 
-function speakAlert(c) {
+function speakAlert(c, onDone) {
   const s = callSpeech(c);
   const again = 'Address: ' + spAddr(c.address) + '.'
     + ' Nature: ' + (c.nature == null ? '' : c.nature) + '.'
     + (c.response_channel ? ' Respond on ' + c.response_channel + '.' : '');
-  speakMany([s, again, 'The time is ' + nowTime() + '.']);
+  speakMany([s, again, 'The time is ' + nowTime() + '.'], onDone);
 }
 
 function readAloud(b) {
