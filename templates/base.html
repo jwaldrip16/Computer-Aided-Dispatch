@@ -7,6 +7,13 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+{% with msgs = get_flashed_messages() %}
+  {% if msgs %}
+  <div class="flashbar">
+    {% for m in msgs %}<p class="flashmsg">{{ m }}</p>{% endfor %}
+  </div>
+  {% endif %}
+{% endwith %}
 <header class="topbar">
   <div class="brand">CAD Lite</div>
   {% if me and me['role'] == 'unit' %}

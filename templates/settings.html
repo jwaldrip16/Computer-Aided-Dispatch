@@ -16,6 +16,11 @@
     <label class="checkrow"><input type="checkbox" name="say_time" {% if fmt.say_time %}checked{% endif %}>
       Say the time of dispatch</label>
     <p><b>Sounds like:</b> "{{ example }}"</p>
+    <h2>Google Maps</h2>
+    <p class="muted">Optional. Paste your Google Maps key here and address checks use
+    Google Maps. Without a key they use the free OpenStreetMap service.</p>
+    <label>Google Maps key <input name="google_key" value="{{ google_key }}"
+      placeholder="AIza..."></label>
     <button type="submit" class="primary">Save</button>
   </form>
 </div>

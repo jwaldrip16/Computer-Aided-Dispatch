@@ -15,8 +15,8 @@ import threading
 
 import psycopg2
 import psycopg2.extras
-from flask import (Flask, Response, abort, jsonify, redirect, render_template,
-                   request, session, url_for)
+from flask import (Flask, Response, abort, flash, jsonify, redirect,
+                   render_template, request, session, url_for)
 from werkzeug.security import check_password_hash, generate_password_hash
 
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
@@ -313,6 +313,12 @@ def new_call():
             return render_template("new_call.html", me=me, natures=NATURES,
                                    ctype=ctype, nature=nature, priority=priority,
                                    error="An address or location is required.")
+        try:
+            addr_lat = float(request.form.get("addr_lat") or "")
+            addr_lng = float(request.form.get("addr_lng") or "")
+        except ValueError:
+            addr_lat = addr_lng = None
+        addr_formatted = (request.form.get("addr_formatted") or "").strip() or None
         norm = " ".join(address.lower().split())
         dup = None
         if request.form.get("force") != "1":
@@ -332,16 +338,17 @@ def new_call():
                                    notify=request.form.get("notify") == "1",
                                    error="")
         notify = request.form.get("notify") == "1"
-        cid = q(
-            "INSERT INTO calls (call_type, nature, address, priority,"
-            " caller_name, caller_phone, notes_in, dispatcher, notified_at)"
-            " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,"
-            + ("now()" if notify else "NULL") + ") RETURNING id",
-            (ctype, nature, address, priority,
-             (request.form.get("caller_name") or "").strip() or None,
-             (request.form.get("caller_phone") or "").strip() or None,
-             (request.form.get("notes_in") or "").strip() or None,
-             me["username"]), one=True)["id"]
+        vals = [ctype, nature, address, priority,
+                (request.form.get("caller_name") or "").strip() or None,
+                (request.form.get("caller_phone") or "").strip() or None,
+                (request.form.get("notes_in") or "").strip() or None,
+                me["username"], addr_lat, addr_lng, addr_formatted]
+        cid = q("INSERT INTO calls (call_type, nature, address, priority,"
+                " caller_name, caller_phone, notes_in, dispatcher, lat, lng,"
+                " addr_formatted, notified_at)"
+                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
+                + ("now()" if notify else "NULL") + ") RETURNING id",
+                vals, one=True)["id"]
         log_audit(me["username"], "call_created",
                   "call %s: %s, %s, %s" % (cid, ctype, nature, address))
         return redirect(url_for("call_view", call_id=cid))
@@ -458,15 +465,56 @@ def settings_page():
             q("INSERT INTO settings (key, value) VALUES (%s, %s)"
               " ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
               ("alert_" + k, "1" if request.form.get(k) else "0"))
+        gk = (request.form.get("google_key") or "").strip()
+        q("INSERT INTO settings (key, value) VALUES ('google_key', %s)"
+          " ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value", (gk,))
         log_audit(me["username"], "settings_saved", "call alert voice")
         return redirect(url_for("settings_page"))
+    gk = get_google_key()
     fmt = get_alert_format()
     example = alert_text(
         {"call_type": "fire", "address": "1201 1st Ave, Opelika",
          "nature": "structure fire", "notified_at": None,
          "created_at": datetime.now()},
         fmt)
-    return render_template("settings.html", me=me, fmt=fmt, example=example)
+    return render_template("settings.html", me=me, fmt=fmt, example=example,
+                           google_key=gk or "")
+
+
+def get_google_key():
+    try:
+        r = q("SELECT value FROM settings WHERE key = 'google_key'", one=True)
+        if r and (r["value"] or "").strip():
+            return r["value"].strip()
+    except Exception:
+        pass
+    return os.environ.get("GOOGLE_KEY", "").strip() or None
+
+
+def validate_call_address(address):
+    """Check an address against Google Maps when a key is set, otherwise
+    the free OpenStreetMap geocoder. Returns
+    {formatted, lat, lng, source} or None when nothing matches."""
+    key = get_google_key()
+    if key:
+        try:
+            url = ("https://maps.googleapis.com/maps/api/geocode/json?" +
+                   urllib.parse.urlencode({"address": address, "key": key}))
+            with urllib.request.urlopen(url, timeout=8) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+            if data.get("results"):
+                r = data["results"][0]
+                loc = r["geometry"]["location"]
+                return {"formatted": r["formatted_address"],
+                        "lat": float(loc["lat"]), "lng": float(loc["lng"]),
+                        "source": "google"}
+        except Exception:
+            pass
+    loc = geocode_call_address(address)
+    if not loc:
+        return None
+    return {"formatted": address, "lat": loc[0], "lng": loc[1],
+            "source": "openstreetmap"}
 
 
 def geocode_call_address(address):
@@ -496,6 +544,37 @@ def haversine_miles(lat1, lng1, lat2, lng2):
     a = (math.sin(dp / 2) ** 2 +
          math.cos(p1) * math.cos(p2) * math.sin(dl / 2) ** 2)
     return 2 * r * math.asin(math.sqrt(a)) * 0.621371
+
+
+@app.route("/api/validate-address", methods=["POST"])
+@staff_required
+def api_validate_address():
+    address = (request.form.get("address") or "").strip()
+    if not address:
+        return jsonify(ok=False, error="Type an address first."), 400
+    v = validate_call_address(address)
+    if not v:
+        return jsonify(ok=False,
+                       error="Could not find that address on the map."
+                             " Check the spelling or add the city."), 404
+    return jsonify(ok=True, **v)
+
+
+@app.route("/call/<int:call_id>/delete", methods=["POST"])
+@admin_required
+def call_delete(call_id):
+    me = current_user()
+    row = q("SELECT id, nature, address FROM calls WHERE id = %s", (call_id,),
+            one=True)
+    if not row:
+        flash("Call #%s was already gone." % call_id)
+        return redirect(url_for("board"))
+    q("DELETE FROM calls WHERE id = %s", (call_id,))
+    q("DELETE FROM notes WHERE call_id = %s", (call_id,))
+    log_audit(me["username"], "call_deleted",
+              "call %s: %s, %s" % (call_id, row["nature"], row["address"]))
+    flash("Call #%s deleted." % call_id)
+    return redirect(url_for("board"))
 
 
 @app.route("/call/<int:call_id>/recommend", methods=["POST"])
@@ -797,7 +876,7 @@ def users():
             log_audit(me["username"], "user_created", u)
             return redirect(url_for("users"))
     return render_template("users.html", me=me,
-                           users=q("SELECT id, username, role, created_at"
+                           users=q("SELECT id, username, role, unit_types, created_at"
                                    " FROM users ORDER BY username"), error=error)
 
 

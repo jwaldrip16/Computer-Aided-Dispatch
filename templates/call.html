@@ -14,6 +14,16 @@
     <div>
       <p><b>Nature:</b> {{ c.nature }}</p>
       <p><b>Address:</b> {{ c.address }}</p>
+      {% if c.addr_formatted %}
+      <p><b>Checked on the map:</b> {{ c.addr_formatted }}</p>
+      {% endif %}
+      {% if c.lat and c.lng %}
+      <p><a href="https://www.google.com/maps?q={{ c.lat }},{{ c.lng }}"
+        target="_blank" rel="noopener">Open in Google Maps</a></p>
+      <iframe class="callmap"
+        src="https://maps.google.com/maps?q={{ c.lat }},{{ c.lng }}&z=16&output=embed"
+        loading="lazy" title="Map of the call address"></iframe>
+      {% endif %}
       <p><b>Priority:</b> <span class="tag p-{{ c.priority }}">{{ c.priority|capitalize }}</span></p>
       <p><b>Came in:</b> <span class="ts">{{ c.created_at }}</span></p>
       <p><b>Dispatcher:</b> {{ c.dispatcher or 'n/a' }}</p>
@@ -28,6 +38,12 @@
       </form>
       {% endif %}
       <p><b>Units:</b> {{ c.units or 'none yet' }}</p>
+      {% if me['role'] == 'admin' %}
+      <form method="post" action="{{ url_for('call_delete', call_id=c.id) }}" class="inline"
+        onsubmit="return confirm('Delete call #{{ c.id }}? This cannot be undone.');">
+        <button type="submit" class="btn primary">Delete call</button>
+      </form>
+      {% endif %}
     </div>
     <div>
       <button id="recBtn" class="btn" type="button">Recommend units by location</button>

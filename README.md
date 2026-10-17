@@ -51,6 +51,23 @@ On the dispatch board a newly arrived call row flashes amber five times. On a
 unit phone, a new matching call flashes its card the same way, then the tone
 and voice alert plays.
 
+## Maps and address checking
+
+Type a house number and street, a city, or cross streets like
+"Main St & 4th Ave, Opelika" in the address box. Click "Check address on
+the map" and the app looks it up, shows the exact address it found with a
+map preview, and remembers it on the call. The call page shows the map and
+an "Open in Google Maps" link.
+
+Address checks use Google Maps if you paste a Google Maps key on the
+Settings page. Without a key they use the free OpenStreetMap service.
+
+## Delete a call (admin only)
+
+On a call page, admins see a Delete call button. It asks to confirm, then
+removes the call and its notes and writes it to the audit log. Dispatchers
+and units cannot delete calls.
+
 ## Deploy on Railway (new project)
 1. Make a new empty project (repo) for this code, like your other Railway apps.
 2. In the Railway project, add a PostgreSQL database. Railway creates a
