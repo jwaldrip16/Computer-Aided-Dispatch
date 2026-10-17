@@ -80,6 +80,7 @@
     </div>
     <div>
       <button id="recBtn" class="btn" type="button">Recommend units by location</button>
+      <button id="nearestBtn" class="btn" type="button">Assign nearest</button>
       <div id="recPanel"></div>
       <form method="post" action="{{ url_for('call_units', call_id=c.id) }}" class="inline" id="unitsForm">
         <label>Units assigned
@@ -223,38 +224,56 @@ editSug.addEventListener('click', e => {
 <script>
 (function () {
   const btn = document.getElementById('recBtn');
+  const nb = document.getElementById('nearestBtn');
   const panel = document.getElementById('recPanel');
   const note = document.getElementById('recNote');
   function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
-  btn.addEventListener('click', async () => {
-    btn.disabled = true;
-    panel.textContent = '';
-    note.textContent = 'Finding the closest on-duty units...';
+  async function getRecs() {
     let r;
     try {
       r = await fetch('/call/' + CALL.id + '/recommend', { method: 'POST' });
     } catch (e) {
-      note.textContent = 'Could not reach the app. Try again.';
-      btn.disabled = false;
-      return;
+      return { error: 'Could not reach the app. Try again.' };
     }
-    if (!r.ok) {
-      const e = await r.json().catch(() => ({}));
-      note.textContent = e.error || 'Could not find that address on the map.';
-      btn.disabled = false;
-      return;
-    }
-    const d = await r.json();
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) return { error: d.error || 'Could not find that address on the map.' };
+    return { recs: d.recommendations || [] };
+  }
+  function rowHtml(u) {
+    const dist = (u.miles === null || u.miles === undefined)
+      ? 'distance unknown (address not on the map)'
+      : u.miles + ' mi away';
+    return '<div class="row spread recrow"><span><b>' + esc(u.username) + '</b>, ' +
+      dist + '</span><button class="btn addUnit" type="button" data-name="' +
+      esc(u.username) + '">Add</button></div>';
+  }
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    panel.textContent = '';
+    note.textContent = 'Finding the closest on-duty units...';
+    const d = await getRecs();
     btn.disabled = false;
-    if (!d.recommendations.length) {
+    if (d.error) { note.textContent = d.error; return; }
+    if (!d.recs.length) {
       note.textContent = 'No on-duty units are sharing a location right now.';
       return;
     }
-    note.textContent = 'Closest on-duty units first (straight-line miles). Add puts the name in the box above.';
-    panel.innerHTML = d.recommendations.map(u =>
-      '<div class="row spread recrow"><span><b>' + esc(u.username) + '</b>, ' +
-      u.miles + ' mi away</span><button class="btn addUnit" type="button" data-name="' +
-      esc(u.username) + '">Add</button></div>').join('');
+    note.textContent = 'Closest on-duty units first (straight-line miles). Add puts the name in the box above. Assign nearest picks the first one.';
+    panel.innerHTML = d.recs.map(rowHtml).join('');
+  });
+  nb.addEventListener('click', async () => {
+    nb.disabled = true;
+    note.textContent = 'Finding the closest on-duty unit...';
+    const d = await getRecs();
+    nb.disabled = false;
+    if (d.error) { note.textContent = d.error; return; }
+    if (!d.recs.length) {
+      note.textContent = 'No on-duty units are sharing a location right now.';
+      return;
+    }
+    const first = d.recs[0];
+    document.getElementById('unitsInput').value = first.username;
+    document.getElementById('unitsForm').submit();
   });
   panel.addEventListener('click', e => {
     const b = e.target.closest('button.addUnit');

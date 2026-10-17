@@ -181,3 +181,24 @@ notes.
 
 The dispatch board shows every unit account in two rows: On duty (green) and Off duty.
 On-duty units also show when their last location came in. It refreshes with the board.
+
+## Assign the nearest responder
+
+On any call page (open, pending, or dispatched) there are two buttons above the units
+box:
+
+- "Recommend units by location" lists on-duty units closest first, straight-line miles,
+  and an Add button per unit. If the address is not on the map, the list still comes up
+  with "distance unknown".
+- "Assign nearest" picks the closest on-duty unit in one click and saves it as the
+  assigned unit.
+
+On the dispatch board, calls sitting in the pending queue have a Nearest button right on
+the row. It assigns the closest on-duty unit to that call without opening it. Then press
+Send to units to dispatch.
+
+## Clearing a call
+
+Every row on the dispatch board has a Clear button that closes the call (open, pending,
+or dispatched). Closed calls move to the Recent section. The call page also has a Closed
+status button. Closed calls stop appearing on unit phones.

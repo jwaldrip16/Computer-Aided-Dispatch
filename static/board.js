@@ -38,6 +38,10 @@ function rowHtml(c) {
     : '<span class="muted">sent</span>';
   const queueBtn = (c.status === 'open' || c.status === 'dispatched')
     ? ` <button class="btn queue" data-id="${c.id}">Queue</button>` : '';
+  const nearBtn = c.status === 'pending'
+    ? ` <button class="btn near" data-id="${c.id}">Nearest</button>` : '';
+  const clrBtn = c.status !== 'closed'
+    ? ` <button class="btn clr" data-id="${c.id}">Clear</button>` : '';
   return `<tr ${open ? 'class="row-' + c.id + '"' : ''}>` +
     `<td>${fmt(c.created_at)}</td>` +
     `<td><span class="tag ${c.call_type}">${c.call_type}</span></td>` +
@@ -49,12 +53,12 @@ function rowHtml(c) {
     `<td>${esc(c.dispatcher || '')}</td>` +
     `<td><a href="/call/${c.id}">Open</a> ` +
     `<button class="btn read" data-id="${c.id}">Read</button> ` +
-    send + queueBtn + (IS_ADMIN ? ` <button class="btn del" data-id="${c.id}">Delete</button>` : '') +
+    send + queueBtn + nearBtn + clrBtn + (IS_ADMIN ? ` <button class="btn del" data-id="${c.id}">Delete</button>` : '') +
     `</td>` +
     `</tr>`;
 }
 
-function esc(s) { return String(s ?? '').replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
 function escAttr(s) { return esc(s).replace(/'/g, '&#39;'); }
 
 function fill(tbodyId, emptyId, list) {
@@ -125,6 +129,30 @@ document.addEventListener('click', async e => {
   if (n) {
     n.disabled = true;
     await fetch(`/call/${n.dataset.id}/notify`, {method: 'POST'});
+    poll();
+  }
+  const cl = e.target.closest('button.clr');
+  if (cl) {
+    cl.disabled = true;
+    await fetch(`/call/${cl.dataset.id}/status`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({status: 'closed'})
+    });
+    poll();
+  }
+  const nr = e.target.closest('button.near');
+  if (nr) {
+    nr.disabled = true;
+    const id = nr.dataset.id;
+    let r = await fetch(`/call/${id}/recommend`, {method: 'POST'});
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { alert(d.error || 'Could not find the closest unit.'); nr.disabled = false; return; }
+    if (!d.recommendations.length) { alert('No on-duty units are sharing a location right now.'); nr.disabled = false; return; }
+    const first = d.recommendations[0];
+    const fd = new FormData();
+    fd.append('units', first.username);
+    await fetch(`/call/${id}/units`, {method: 'POST', body: fd});
     poll();
   }
 });

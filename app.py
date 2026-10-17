@@ -832,23 +832,27 @@ def call_recommend(call_id):
     call = _load_call(call_id)
     if call["lat"] is None or call["lng"] is None:
         loc = geocode_call_address(call["address"])
-        if not loc:
-            return jsonify(ok=False,
-                           error="Could not find that address on the map."
-                                 " Check the spelling or add the city."), 400
-        q("UPDATE calls SET lat = %s, lng = %s WHERE id = %s",
-          (loc[0], loc[1], call_id))
-        clat, clng = loc
+        if loc:
+            q("UPDATE calls SET lat = %s, lng = %s WHERE id = %s",
+              (loc[0], loc[1], call_id))
+            clat, clng = loc
+        else:
+            clat, clng = None, None
     else:
         clat, clng = call["lat"], call["lng"]
     units = q("SELECT username, lat, lng FROM users"
               " WHERE role = 'unit' AND unit_status = 'on_duty'"
               " AND lat IS NOT NULL AND lng IS NOT NULL")
-    recs = sorted(
-        ({"username": u["username"],
-          "miles": round(haversine_miles(clat, clng, u["lat"], u["lng"]), 1)}
-         for u in units),
-        key=lambda r: r["miles"])
+    if clat is not None:
+        recs = sorted(
+            ({"username": u["username"],
+              "miles": round(haversine_miles(clat, clng, u["lat"], u["lng"]), 1)}
+             for u in units),
+            key=lambda r: r["miles"])
+    else:
+        recs = sorted(
+            ({"username": u["username"], "miles": None} for u in units),
+            key=lambda r: r["username"])
     log_audit(me["username"], "units_recommended", "call %s" % call_id)
     return jsonify(ok=True, recommendations=recs)
 
