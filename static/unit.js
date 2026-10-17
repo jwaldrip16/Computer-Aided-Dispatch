@@ -128,7 +128,8 @@ function nowTime() {
 
 function speakAlert(c) {
   const s = callSpeech(c);
-  const again = 'Address: ' + (c.address == null ? '' : c.address) + '.';
+  const again = 'Address: ' + (c.address == null ? '' : c.address) + '.'
+    + ' Nature: ' + (c.nature == null ? '' : c.nature) + '.';
   speakMany([s, again, 'The time is ' + nowTime() + '.']);
 }
 
@@ -229,7 +230,8 @@ document.addEventListener('click', e => {
     if (FMT.say_time) parts.push('Dispatched at ' +
       new Date(b.dataset.time).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}));
     const s = parts.join('. ') + '.';
-    const again = 'Address: ' + b.dataset.addr + '.';
+    const again = 'Address: ' + b.dataset.addr + '.'
+      + ' Nature: ' + b.dataset.nat + '.';
     speakMany([s, again, 'The time is ' + nowTime() + '.']);
   }
 });
