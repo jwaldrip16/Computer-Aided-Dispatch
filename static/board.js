@@ -38,7 +38,7 @@ function rowHtml(c) {
     : '<span class="muted">sent</span>';
   const queueBtn = (c.status === 'open' || c.status === 'dispatched')
     ? ` <button class="btn queue" data-id="${c.id}">Queue</button>` : '';
-  const nearBtn = c.status === 'pending'
+  const nearBtn = c.status !== 'closed'
     ? ` <button class="btn near" data-id="${c.id}">Nearest</button>` : '';
   const clrBtn = c.status !== 'closed'
     ? ` <button class="btn clr" data-id="${c.id}">Clear</button>` : '';

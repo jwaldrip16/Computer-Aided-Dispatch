@@ -193,9 +193,9 @@ box:
 - "Assign nearest" picks the closest on-duty unit in one click and saves it as the
   assigned unit.
 
-On the dispatch board, calls sitting in the pending queue have a Nearest button right on
-the row. It assigns the closest on-duty unit to that call without opening it. Then press
-Send to units to dispatch.
+On the dispatch board, every call that is not closed (open, pending, or dispatched) has
+a Nearest button right on the row. It assigns the closest on-duty unit to that call
+without opening it. Then press Send to units to dispatch.
 
 ## Clearing a call
 
