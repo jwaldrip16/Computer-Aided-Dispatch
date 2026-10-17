@@ -37,6 +37,6 @@ async function poll() {
     }
   } catch (e) {}
 }
-function esc(s) { return String(s == null ? '').replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch])); }
 poll();
 setInterval(poll, 5000);
