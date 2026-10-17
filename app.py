@@ -1026,13 +1026,9 @@ def page_speech_text(c):
     return "%s %s %s" % (first, again, stamp)
 
 
-def _tone_mp3(ctype, emergency):
-    """MP3 of the alert tone-out, the same beep pattern the unit phones
-    play (sine beeps with 0.05 s fades). Returns None without lameenc."""
-    try:
-        import lameenc
-    except Exception:
-        return None
+def _tone_pcm(ctype, emergency):
+    """Raw 22050 Hz mono PCM of the alert tone-out, the same beep pattern
+    the unit phones play (sine beeps with 0.05 s fades)."""
     import math as _math
     seq = []
     secs = 0.0
@@ -1069,12 +1065,55 @@ def _tone_mp3(ctype, emergency):
             v = int(amp * 32767 * _math.sin(2 * _math.pi * freq * t))
             pcm[i * 2] = v & 0xFF
             pcm[i * 2 + 1] = (v >> 8) & 0xFF
+    return bytes(pcm)
+
+
+def _encode_mp3(pcm, rate):
+    """Encode raw PCM to a mono MP3. Returns None without lameenc."""
+    try:
+        import lameenc
+    except Exception:
+        return None
     enc = lameenc.Encoder()
     enc.set_bit_rate(64)
     enc.set_in_sample_rate(rate)
     enc.set_channels(1)
     enc.set_quality(5)
-    return bytes(enc.encode(bytes(pcm))) + bytes(enc.flush())
+    return bytes(enc.encode(pcm)) + bytes(enc.flush())
+
+
+def _tone_mp3(ctype, emergency):
+    """The tone-out on its own MP3 stream: the fallback recording when the
+    voice cannot be decoded for a single-stream file."""
+    pcm = _tone_pcm(ctype, emergency)
+    return _encode_mp3(pcm, 22050) if pcm else None
+
+
+def _voice_pcm(mp3_bytes):
+    """Decode an MP3 to raw 22050 Hz mono PCM with the bundled ffmpeg, so
+    the tone and the voice end up as ONE MP3 stream players play whole."""
+    try:
+        import imageio_ffmpeg
+        import subprocess as _sp
+        import tempfile as _tf
+        exe = imageio_ffmpeg.get_ffmpeg_exe()
+        with _tf.NamedTemporaryFile(suffix=".mp3", delete=False) as f:
+            f.write(mp3_bytes)
+            path = f.name
+        try:
+            p = _sp.run([exe, "-v", "error", "-i", path, "-f", "s16le",
+                         "-ar", "22050", "-ac", "1", "-"],
+                        capture_output=True, timeout=45)
+            if p.returncode != 0 or not p.stdout:
+                return None
+            return p.stdout
+        finally:
+            try:
+                os.unlink(path)
+            except Exception:
+                pass
+    except Exception:
+        return None
 
 
 def _backfill_page_audio():
@@ -1103,10 +1142,21 @@ def record_page_audio(page_id, c):
         import io as _io
         buf = _io.BytesIO()
         gTTS(text=page_speech_text(c), lang="en").write_to_fp(buf)
-        tone = _tone_mp3((c["call_type"] or "other").strip().lower(),
-                         c["priority"] == "emergency") or b""
+        voice = buf.getvalue()
+        ctype = (c["call_type"] or "other").strip().lower()
+        emergency = c["priority"] == "emergency"
+        audio = None
+        tone_pcm = _tone_pcm(ctype, emergency)
+        if tone_pcm:
+            vp = _voice_pcm(voice)
+            if vp is not None:
+                # one MP3 stream: some players stop at the sample-rate
+                # change of two glued streams and play only the tone
+                audio = _encode_mp3(tone_pcm + vp, 22050)
+        if audio is None:
+            audio = (_tone_mp3(ctype, emergency) or b"") + voice
         q("UPDATE call_pages SET page_text = %s, audio = %s WHERE id = %s",
-          (page_speech_text(c), tone + buf.getvalue(), page_id))
+          (page_speech_text(c), audio, page_id))
     except Exception:
         q("UPDATE call_pages SET page_text = %s WHERE id = %s",
           (page_speech_text(c), page_id))
