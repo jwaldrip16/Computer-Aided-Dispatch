@@ -25,7 +25,7 @@
         loading="lazy" title="Map of the call address"></iframe>
       {% endif %}
       <p><b>Priority:</b> <span class="tag p-{{ c.priority }}">{{ c.priority|capitalize }}</span></p>
-      <p><b>Came in:</b> <span class="ts">{{ c.created_at }}</span></p>
+      <p><b>Came in:</b> <span class="ts">{{ came_in_str }} Central</span></p>
       <p><b>Dispatcher:</b> {{ c.dispatcher or 'n/a' }}</p>
       <p><b>Caller:</b> {{ c.caller_name or 'n/a' }} {% if c.caller_phone %} &middot; {{ c.caller_phone }}{% endif %}</p>
       {% if c.response_channel %}<p><b>Response channel:</b> {{ c.response_channel }}</p>{% endif %}
@@ -44,7 +44,7 @@
       {% if c.notes_in %}<p><b>Caller said:</b> {{ c.notes_in }}</p>{% endif %}
       <p><b>Status:</b> {{ c.status|capitalize }}</p>
       {% if c.notified_at %}
-      <p><b>Sent to unit phones:</b> <span class="ts">{{ c.notified_at }}</span></p>
+      <p><b>Sent to unit phones:</b> <span class="ts">{{ notified_str }} Central</span></p>
       {% else %}
       {% if c.status == 'pending' %}<p><span class="tag">pending</span> Waiting in
         the pending queue.</p>{% endif %}

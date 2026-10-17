@@ -468,13 +468,16 @@ def call_view(call_id):
     responses = unit_responses([call_id]).get(call_id, [])
     unit_users = q("SELECT username FROM users WHERE role = 'unit'"
                    " ORDER BY username")
+    central = ZoneInfo("America/Chicago")
     for n in notes:
-        n["created_at"] = n["created_at"].isoformat()
+        n["created_at"] = n["created_at"].astimezone(central).strftime(
+            "%a %b %d, %I:%M:%S %p")
     pages = q("SELECT * FROM call_pages WHERE call_id = %s"
               " ORDER BY id DESC LIMIT 20", (call_id,))
     c["pages"] = [{"units": p["units"],
                    "id": p["id"], "call_id": p["call_id"],
-                   "paged_at_str": p["paged_at"].strftime("%a %b %d, %I:%M %p"),
+                   "paged_at_str": p["paged_at"].astimezone(central).strftime(
+                       "%a %b %d, %I:%M:%S %p"),
                    "audio": bool(p["audio"])}
                   for p in pages]
     steps = q("SELECT * FROM sop_templates WHERE call_type = %s"
@@ -492,7 +495,10 @@ def call_view(call_id):
                (call_id,))
     for s in shares:
         s["url"] = "/share/" + s["token"]
-    return render_template("call.html", me=me, c=call_dict(c), notes=notes,
+    came_in = c["created_at"].astimezone(central).strftime("%a %b %d, %I:%M:%S %p") if c["created_at"] else ""
+    notified = c["notified_at"].astimezone(central).strftime("%a %b %d, %I:%M:%S %p") if c["notified_at"] else ""
+    return render_template("call.html", me=me, came_in_str=came_in,
+                           notified_str=notified, c=call_dict(c), notes=notes,
                            responses=responses, unit_users=unit_users,
                            checklist=checklist, shares=shares,
                            type_name=c["call_type"].capitalize())

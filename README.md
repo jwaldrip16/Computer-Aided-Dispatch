@@ -198,6 +198,8 @@ pending queue until dispatch is ready.
 - Calls in the pending queue can always be assigned by typing unit names
   and sent with "Send to units", whether they were never sent or were
   queued back from dispatched; adding units to a queued call never pages.
+- The call page shows its times in Central time: Came in, Sent to unit
+  phones, each line of the "Pages to units" list, and the notes.
 - Every page to the units is recorded on the call page ("Pages to units"):
   the time and the units that were paged, including automatic re-pages when
   units change. The page voice is spoken by each unit phone, so there is no
