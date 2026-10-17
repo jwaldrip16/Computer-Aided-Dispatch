@@ -178,6 +178,8 @@ async function poll() {
     const r = await fetch('/api/unit-board');
     if (r.status === 401) { location.href = '/login'; return; }
     const d = await r.json();
+    const nt = document.getElementById('noTypes');
+    if (nt) nt.classList.toggle('hidden', !d.no_types);
     ON_DUTY = d.me_status === 'on_duty';
     const btn = $('dutyBtn');
     btn.textContent = ON_DUTY ? 'Go off duty' : 'Go on duty';

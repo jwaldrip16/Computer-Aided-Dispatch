@@ -202,3 +202,18 @@ Send to units to dispatch.
 Every row on the dispatch board has a Clear button that closes the call (open, pending,
 or dispatched). Closed calls move to the Recent section. The call page also has a Closed
 status button. Closed calls stop appearing on unit phones.
+
+## Troubleshooting: a unit is not getting calls
+
+A unit phone only shows calls that match ALL of these. Check in this order:
+
+1. The unit account must have at least one call type picked (police, fire, medical,
+   other). The Users page now refuses to save a unit without one, and the unit phone
+   shows a red warning when its account has none.
+2. The call must be dispatched, not pending. Pending calls never go to unit phones.
+   Assign units (Nearest or by hand), then press "Send to units". Assigning alone does
+   not send anything.
+3. The call's type must match one of the unit's types. A fire call will not show on a
+   unit that only has police checked.
+4. The unit phone must be signed in. If the session ran out, the page goes back to the
+   login screen; sign in again and re-arm the sound.

@@ -957,9 +957,13 @@ def unit_home():
 def api_unit_board():
     me = current_user()
     types = [t for t in (me["unit_types"] or "").split(",") if t in CALL_TYPES]
-    if me["role"] != "unit" or not types:
+    if me["role"] != "unit":
         return jsonify(active=[], recent=[],
                        me_status=me["unit_status"] or "off_duty")
+    if not types:
+        return jsonify(active=[], recent=[],
+                       me_status=me["unit_status"] or "off_duty",
+                       no_types=True)
     ph = ",".join(["%s"] * len(types))
     active = q("SELECT * FROM calls WHERE status IN ('open','dispatched')"
                " AND call_type IN (%s) AND notified_at IS NOT NULL"
@@ -1233,6 +1237,8 @@ def users():
             error = "Username needs at least 3 characters and password at least 6."
         elif q("SELECT 1 FROM users WHERE username = %s", (u,), one=True):
             error = "That username is already used."
+        elif role == "unit" and not utypes:
+            error = "A unit needs at least one call type picked (police, fire, medical, other), or it will never receive calls."
         else:
             q("INSERT INTO users (username, pass_hash, role, unit_types)"
               " VALUES (%s,%s,%s,%s)",
@@ -1273,6 +1279,8 @@ def user_edit(uid):
             error = "Password needs at least 6 characters."
         elif (me["id"] == u["id"] and role != "admin" and admins <= 1):
             error = "You are the only admin, so you cannot change your own role."
+        elif role == "unit" and not utypes:
+            error = "A unit needs at least one call type picked (police, fire, medical, other), or it will never receive calls."
         else:
             sets = ["username = %s", "role = %s",
                     "unit_types = %s" if role == "unit" else "unit_types = NULL"]
