@@ -180,6 +180,9 @@ pending queue until dispatch is ready.
 - On the unit phone, each call shows the status of every unit on the call
   (enroute, on scene, and so on) next to their name, and the Navigate button
   opens Google Maps turn-by-turn directions straight to the call address.
+- Dispatch can put a unit on duty or off duty from the board's units list
+  (Put on duty / Send off duty next to each unit). Sending a unit off duty
+  clears its location, the same as when the unit does it from its own phone.
 - Off-duty units cannot be added to a call, in the pending queue or the active queue.
   The board tells you which unit is off duty. Removing a unit always works, even if
   that unit is now off duty. Nearest only suggests on-duty units.

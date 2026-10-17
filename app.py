@@ -1152,6 +1152,31 @@ def unit_status():
     return jsonify(ok=True)
 
 
+@app.route("/api/dispatch/unit-duty", methods=["POST"])
+@staff_required
+def dispatch_unit_duty():
+    """Let dispatch put a unit on duty or off duty from the board."""
+    me = current_user()
+    body = request.get_json(silent=True) or {}
+    username = (body.get("username") or "").strip()
+    status = body.get("status")
+    if status not in ("on_duty", "off_duty"):
+        abort(400)
+    u = q("SELECT * FROM users WHERE username = %s AND role = 'unit'",
+          (username,), one=True)
+    if not u:
+        return jsonify(ok=False, error="That unit does not exist."), 400
+    if status == "on_duty":
+        q("UPDATE users SET unit_status = 'on_duty' WHERE username = %s",
+          (username,))
+        log_audit(me["username"], "unit_duty_set", "Put %s on duty" % username)
+    else:
+        q("UPDATE users SET unit_status = 'off_duty', lat = NULL, lng = NULL,"
+          " loc_updated = now() WHERE username = %s", (username,))
+        log_audit(me["username"], "unit_duty_set", "Took %s off duty" % username)
+    return jsonify(ok=True)
+
+
 @app.route("/units")
 @role_required("admin", "dispatcher")
 def units_page():
@@ -1418,6 +1443,8 @@ def audit():
             text = "Changed units on call %s to %s" % (cid, after("units:")) if cid else "Changed units"
         elif a == "units_recommended":
             text = "Looked up the closest on-duty units for call %s" % cid
+        elif a == "unit_duty_set":
+            text = d or "Changed a unit's duty status"
         elif a == "dispatch_unit_status":
             text = "Dispatch set a unit status on call %s (%s)" % (cid, after(":"))
         elif a == "unit_call_status":

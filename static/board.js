@@ -89,8 +89,11 @@ function unitChip(u) {
     ? ' <span class="uloc">location ' +
       new Date(u.loc_updated).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) + '</span>'
     : '';
+  const duty = u.unit_status === 'on_duty'
+    ? '<button class="btn dutybtn" data-name="' + escAttr(u.username) + '" data-to="off_duty">Send off duty</button>'
+    : '<button class="btn dutybtn" data-name="' + escAttr(u.username) + '" data-to="on_duty">Put on duty</button>';
   return '<span class="' + cls + '">' + esc(u.username) +
-    ' <span class="ustat">' + esc(st) + '</span>' + esc(types) + loc + '</span>';
+    ' <span class="ustat">' + esc(st) + '</span>' + esc(types) + loc + duty + '</span>';
 }
 
 function fillUnits(list) {
@@ -179,6 +182,16 @@ document.addEventListener('click', async e => {
     fd.set('units', rest.join(', '));
     await fetch(`/call/${ud.dataset.id}/units`, {method: 'POST', body: fd});
     poll();
+  }
+  const du = e.target.closest('button.dutybtn');
+  if (du) {
+    du.disabled = true;
+    const res = await fetch('/api/dispatch/unit-duty', {method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username: du.dataset.name, status: du.dataset.to})});
+    if (!res.ok) alert(await res.text());
+    poll();
+    return;
   }
   const bp = e.target.closest('button.bpage');
   if (bp) {

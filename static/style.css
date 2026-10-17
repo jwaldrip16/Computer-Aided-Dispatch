@@ -95,3 +95,5 @@ table.calls tr.flash, .card.flash { animation: flash 1.2s ease 5; }
 .units-inp { width: 120px; min-width: 90px; }
 
 .ustat { font-weight: normal; opacity: .85; font-size: .85em; }
+
+.dutybtn { font-size: .8em; padding: 1px 8px; margin-left: 4px; }
