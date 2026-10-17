@@ -319,7 +319,9 @@ def api_board():
                   "loc_updated": r["loc_updated"].isoformat()
                   if r["loc_updated"] else None}
                  for r in units]
-    return jsonify(active=[call_dict(r) for r in active],
+    resp = unit_responses([r["id"] for r in active])
+    return jsonify(active=[dict(call_dict(r), responses=resp.get(r["id"], []))
+                           for r in active],
                    pending=[call_dict(r) for r in pending],
                    recent=[call_dict(r) for r in recent],
                    units=units_out)

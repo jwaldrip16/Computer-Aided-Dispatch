@@ -185,6 +185,9 @@ pending queue until dispatch is ready.
   dispatcher board, the call page, and the unit phone, and the unit voice says
   "Respond on <channel>" after the nature, in both passes. Leave it empty and
   the voice says nothing about it.
+- The dispatcher board shows each assigned unit's live response status on the
+  call row ("enroute", "on scene", "transporting", "clear") and updates it on
+  its own as units report in.
 - Every page to the units is recorded on the call page ("Pages to units"):
   the time and the units that were paged, including automatic re-pages when
   units change. The page voice is spoken by each unit phone, so there is no

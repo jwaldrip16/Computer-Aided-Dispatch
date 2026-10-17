@@ -43,9 +43,16 @@ function rowHtml(c) {
   const clrBtn = c.status !== 'closed'
     ? ` <button class="btn clr" data-id="${c.id}">Clear</button>` : '';
   const unitList = (c.units || '').split(',').map(s => s.trim()).filter(Boolean);
+  const ustat = {};
+  for (const e of (c.responses || [])) {
+    if (e.username) ustat[String(e.username).trim().toLowerCase()] = e.status;
+  }
   const unitsCell = (open && unitList.length)
-    ? unitList.map(n =>
-        `<button class="btn udel" data-id="${c.id}" data-name="${escAttr(n)}" data-units="${escAttr(c.units)}" title="Remove ${escAttr(n)}">${esc(n)} &times;</button>`).join(' ')
+    ? unitList.map(n => {
+        const st = ustat[String(n).trim().toLowerCase()];
+        return `<button class="btn udel" data-id="${c.id}" data-name="${escAttr(n)}" data-units="${escAttr(c.units)}" title="Remove ${escAttr(n)}">${esc(n)} &times;</button>` +
+          (st ? ` <span class="ustat">(${esc(String(st).replace(/_/g, ' '))})</span>` : '');
+      }).join(' ')
     : esc(c.units || '');
   const unitsCtl = open
     ? (!c.notified_at
