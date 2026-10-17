@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shared call log</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<main class="wrap">
+<div class="card">
+  <p class="muted">Shared read-only view of the call log (most recent 200 calls).</p>
+  <h1>Call log</h1>
+  <table class="calls">
+    <thead><tr><th>#</th><th>Time</th><th>Type</th><th>Nature</th><th>Address</th><th>Priority</th><th>Status</th><th>Units</th></tr></thead>
+    <tbody>
+    {% for c in calls %}
+      <tr><td>{{ c.id }}</td><td>{{ c.created_at }}</td><td>{{ c.call_type|capitalize }}</td>
+      <td>{{ c.nature }}</td><td>{{ c.address }}</td><td>{{ c.priority|capitalize }}</td>
+      <td>{{ c.status|capitalize }}</td><td>{{ c.units or '' }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+</main>
+</body>
+</html>

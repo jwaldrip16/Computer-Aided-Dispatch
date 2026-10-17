@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+{% block title %}Audit log - CAD Lite{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Audit log (latest 200)</h1>
+  <table class="calls">
+    <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Detail</th></tr></thead>
+    <tbody>{% for r in rows %}<tr><td>{{ r.created_at }}</td><td>{{ r.username or '' }}</td><td>{{ r.action }}</td><td>{{ r.detail }}</td></tr>{% endfor %}</tbody>
+  </table>
+</div>
+{% endblock %}

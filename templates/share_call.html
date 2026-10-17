@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shared call #{{ c.id }}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<main class="wrap">
+<div class="card">
+  <p class="muted">Shared read-only view of one call.</p>
+  <h1>Call #{{ c.id }} <span class="tag {{ c.call_type }}">{{ type_name }}</span></h1>
+  <p><b>Nature:</b> {{ c.nature }}</p>
+  <p><b>Address:</b> {{ c.address }}</p>
+  <p><b>Priority:</b> {{ c.priority|capitalize }}</p>
+  <p><b>Came in:</b> {{ c.created_at }}</p>
+  <p><b>Status:</b> {{ c.status|capitalize }}</p>
+  <p><b>Units:</b> {{ c.units or 'none' }}</p>
+  {% if c.notes_in %}<p><b>Caller said:</b> {{ c.notes_in }}</p>{% endif %}
+  <h2>SOP checklist</h2>
+  <ol>{% for s in checklist %}<li>{{ s.text }} {% if s.done %}<b class="ok">(done{% if s.done_by %} by {{ s.done_by }}{% endif %})</b>{% endif %}</li>{% endfor %}</ol>
+  <h2>Notes</h2>
+  <ul class="notes">{% for n in notes %}<li>{{ n.created_at }} {{ n.author }}: {{ n.text }}</li>{% endfor %}</ul>
+</div>
+</main>
+</body>
+</html>

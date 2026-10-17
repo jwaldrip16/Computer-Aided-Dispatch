@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block title %}Call #{{ c.id }} - CAD Lite{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="row spread">
+    <h1>Call #{{ c.id }} <span class="tag {{ c.call_type }}">{{ type_name }}</span></h1>
+    <div>
+      <button id="readBtn" class="btn" type="button">Read aloud</button>
+      <button id="shareBtn" class="btn" type="button">Share this call</button>
+    </div>
+  </div>
+  <div id="shareOut" class="shareout"></div>
+  <div class="grid2">
+    <div>
+      <p><b>Nature:</b> {{ c.nature }}</p>
+      <p><b>Address:</b> {{ c.address }}</p>
+      <p><b>Priority:</b> <span class="tag p-{{ c.priority }}">{{ c.priority|capitalize }}</span></p>
+      <p><b>Came in:</b> <span class="ts">{{ c.created_at }}</span></p>
+      <p><b>Dispatcher:</b> {{ c.dispatcher or 'n/a' }}</p>
+      <p><b>Caller:</b> {{ c.caller_name or 'n/a' }} {% if c.caller_phone %} &middot; {{ c.caller_phone }}{% endif %}</p>
+      {% if c.notes_in %}<p><b>Caller said:</b> {{ c.notes_in }}</p>{% endif %}
+      <p><b>Status:</b> {{ c.status|capitalize }}</p>
+      {% if c.notified_at %}
+      <p><b>Sent to unit phones:</b> <span class="ts">{{ c.notified_at }}</span></p>
+      {% else %}
+      <form method="post" action="{{ url_for('call_notify', call_id=c.id) }}" class="inline">
+        <button type="submit" class="btn primary">Send to unit phones (tone + voice)</button>
+      </form>
+      {% endif %}
+      <p><b>Units:</b> {{ c.units or 'none yet' }}</p>
+    </div>
+    <div>
+      <form method="post" action="{{ url_for('call_units', call_id=c.id) }}" class="inline">
+        <label>Units assigned
+          <input name="units" value="{{ c.units or '' }}" placeholder="Engine 1, Medic 3, Unit 12...">
+        </label>
+        <button type="submit">Save units</button>
+      </form>
+      <div class="statusbtns">
+        {% for s in ['open','dispatched','closed'] %}
+        <form method="post" action="{{ url_for('call_status', call_id=c.id) }}" class="inline">
+          <input type="hidden" name="status" value="{{ s }}">
+          <button type="submit" class="btn st-{{ s }}" {% if c.status == s %}disabled{% endif %}>
+            {{ s|capitalize }}
+          </button>
+        </form>
+        {% endfor %}
+      </div>
+      {% if c.closed_at %}<p><b>Closed:</b> <span class="ts">{{ c.closed_at }}</span></p>{% endif %}
+    </div>
+  </div>
+</div>
+
+<div class="card">
+  <h2>SOP checklist: {{ type_name }} call</h2>
+  <ol id="sopList">
+    {% for s in checklist %}
+    <li>
+      <label class="sopstep">
+        <input type="checkbox" data-pos="{{ s.position }}" {% if s.done %}checked{% endif %}>
+        <span>{{ s.text }}</span>
+        {% if s.done %}<small class="muted">done by {{ s.done_by }}</small>{% endif %}
+      </label>
+    </li>
+    {% endfor %}
+  </ol>
+  <p class="muted">These steps can be changed for your agency on the SOPs page.</p>
+</div>
+
+<div class="card">
+  <h2>Notes log</h2>
+  <ul class="notes">
+    {% for n in notes %}
+    <li><span class="ts">{{ n.created_at }}</span> <b>{{ n.author }}</b>: {{ n.text }}</li>
+    {% endfor %}
+    {% if not notes %}<li class="muted">No notes yet.</li>{% endif %}
+  </ul>
+  <form method="post" action="{{ url_for('call_note', call_id=c.id) }}">
+    <label>Add a note <textarea name="text" rows="2" required></textarea></label>
+    <button type="submit">Add note</button>
+  </form>
+</div>
+<script>const CALL = {{ c|tojson }};</script>
+<script src="{{ url_for('static', filename='call.js') }}"></script>
+{% endblock %}

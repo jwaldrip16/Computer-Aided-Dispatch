@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}My calls - CAD Lite{% endblock %}
+{% block content %}
+<div id="armBanner" class="card armbanner">
+  <p>Browsers need one tap before they will make sound. Tap the button once to turn on the tone and voice alerts.</p>
+  <button id="armBtn" class="btn primary" type="button">Turn on tone and voice</button>
+</div>
+<div class="card">
+  <div class="row spread">
+    <div>
+      <h1>My calls</h1>
+      <p class="muted">Responding to: {% for t in types %}<span class="tag {{ t }}">{{ t }}</span> {% endfor %}{% if not types %}no call types picked yet, ask dispatch{% endif %}</p>
+    </div>
+    <div class="row">
+      <form id="dutyForm"><button id="dutyBtn" class="btn" type="submit"></button></form>
+      <button id="silenceBtn" class="btn" type="button" disabled>Silence</button>
+    </div>
+  </div>
+  <p id="locNote" class="muted"></p>
+</div>
+<h2>Active calls for you</h2>
+<div id="activeCards"></div>
+<p id="noActive" class="muted hidden">No active calls right now.</p>
+<h2>Recently closed</h2>
+<ul class="notes" id="recentList"></ul>
+<script>const FMT = {{ alert_fmt|tojson }};</script>
+<script src="{{ url_for('static', filename='unit.js') }}"></script>
+{% endblock %}

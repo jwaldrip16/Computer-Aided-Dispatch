@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}New call - CAD Lite{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>New call</h1>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <form method="post" id="newCallForm">
+    <div class="row">
+      <label>Type
+        <select name="call_type" id="callType">
+          {% for t in ['police','fire','medical','other'] %}
+          <option value="{{ t }}" {% if t == ctype %}selected{% endif %}>{{ t|capitalize }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Priority
+        <select name="priority">
+          {% for p in ['emergency','urgent','routine','low'] %}
+          <option value="{{ p }}" {% if p == priority %}selected{% endif %}>{{ p|capitalize }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+    <label>Nature of emergency
+      <input name="nature" id="nature" list="natureList" value="{{ nature }}" required>
+      <datalist id="natureList"></datalist>
+    </label>
+    <label>Address or location <input name="address" id="address" required placeholder="House number, street, city"></label>
+    <div class="row">
+      <label>Caller name <input name="caller_name"></label>
+      <label>Call back phone <input name="caller_phone"></label>
+    </div>
+    <label>What the caller says <textarea name="notes_in" rows="3"></textarea></label>
+    <label class="checkrow"><input type="checkbox" name="notify" value="1" checked>
+      Send the tone and voice alert to unit phones now</label>
+    <button type="submit" class="primary">Enter call</button>
+  </form>
+</div>
+<script>
+const NATURES = {{ natures|tojson }};
+const ct = document.getElementById('callType');
+const dl = document.getElementById('natureList');
+function fillNatures() {
+  dl.innerHTML = '';
+  (NATURES[ct.value] || []).forEach(n => {
+    const o = document.createElement('option');
+    o.value = n;
+    dl.appendChild(o);
+  });
+}
+ct.addEventListener('change', fillNatures);
+fillNatures();
+</script>
+{% endblock %}

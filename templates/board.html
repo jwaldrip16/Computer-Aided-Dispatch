@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Dispatch board - CAD Lite{% endblock %}
+{% block content %}
+<div class="boardhead">
+  <a class="btn primary" href="{{ url_for('new_call') }}">+ New call</a>
+  <button id="voiceBtn" class="btn" type="button">Voice: ON</button>
+  <button id="logShareBtn" class="btn" type="button">Share whole log</button>
+  <span id="shareOut" class="shareout"></span>
+</div>
+<div id="shareLogPanel" class="card hidden"></div>
+
+<h2>Active calls</h2>
+<table class="calls" id="activeTable">
+  <thead><tr><th>Time</th><th>Type</th><th>Nature</th><th>Address</th><th>Priority</th><th>Status</th><th>Units</th><th>Dispatcher</th><th></th></tr></thead>
+  <tbody id="activeBody"></tbody>
+</table>
+<p id="noActive" class="muted hidden">No active calls.</p>
+
+<h2>Closed calls (recent)</h2>
+<table class="calls" id="recentTable">
+  <thead><tr><th>Time</th><th>Type</th><th>Nature</th><th>Address</th><th>Priority</th><th>Status</th><th>Units</th><th>Dispatcher</th><th></th></tr></thead>
+  <tbody id="recentBody"></tbody>
+</table>
+<p id="noRecent" class="muted hidden">No closed calls yet.</p>
+
+<script>const FMT = {{ alert_fmt|tojson }};</script>
+<script src="{{ url_for('static', filename='board.js') }}"></script>
+{% endblock %}

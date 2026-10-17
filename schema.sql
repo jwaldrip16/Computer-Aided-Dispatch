@@ -1,0 +1,74 @@
+CREATE TABLE IF NOT EXISTS users (
+  id SERIAL PRIMARY KEY,
+  username TEXT UNIQUE NOT NULL,
+  pass_hash TEXT NOT NULL,
+  role TEXT NOT NULL DEFAULT 'dispatcher',
+  unit_types TEXT,
+  unit_status TEXT NOT NULL DEFAULT 'off_duty',
+  lat DOUBLE PRECISION,
+  lng DOUBLE PRECISION,
+  loc_updated TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE IF NOT EXISTS calls (
+  id SERIAL PRIMARY KEY,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  call_type TEXT NOT NULL,
+  nature TEXT NOT NULL,
+  address TEXT NOT NULL,
+  priority TEXT NOT NULL DEFAULT 'routine',
+  caller_name TEXT,
+  caller_phone TEXT,
+  notes_in TEXT,
+  status TEXT NOT NULL DEFAULT 'open',
+  units TEXT,
+  notified_at TIMESTAMPTZ,
+  dispatcher TEXT,
+  closed_at TIMESTAMPTZ
+);
+CREATE TABLE IF NOT EXISTS call_notes (
+  id SERIAL PRIMARY KEY,
+  call_id INT NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  author TEXT NOT NULL,
+  text TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sop_templates (
+  id SERIAL PRIMARY KEY,
+  call_type TEXT NOT NULL,
+  position INT NOT NULL,
+  text TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS call_sop_state (
+  call_id INT NOT NULL REFERENCES calls(id) ON DELETE CASCADE,
+  position INT NOT NULL,
+  done_at TIMESTAMPTZ,
+  done_by TEXT,
+  PRIMARY KEY (call_id, position)
+);
+CREATE TABLE IF NOT EXISTS shares (
+  id SERIAL PRIMARY KEY,
+  token TEXT UNIQUE NOT NULL,
+  call_id INT REFERENCES calls(id) ON DELETE CASCADE,
+  label TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_by TEXT
+);
+CREATE TABLE IF NOT EXISTS audit (
+  id SERIAL PRIMARY KEY,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  username TEXT,
+  action TEXT NOT NULL,
+  detail TEXT
+);
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS unit_types TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS unit_status TEXT;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS lat DOUBLE PRECISION;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS lng DOUBLE PRECISION;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS loc_updated TIMESTAMPTZ;
+ALTER TABLE calls ADD COLUMN IF NOT EXISTS notified_at TIMESTAMPTZ;

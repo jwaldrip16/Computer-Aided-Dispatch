@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}SOPs - CAD Lite{% endblock %}
+{% block content %}
+<h1>Standard operating procedures</h1>
+{% if me['role'] == 'admin' %}<p class="muted">You are an admin, so you can edit the steps below. One step per line.</p>{% endif %}
+{% for t in ['police','fire','medical','other'] %}
+<div class="card">
+  <h2>{{ t|capitalize }} calls</h2>
+  {% if me['role'] == 'admin' %}
+  <form method="post" action="{{ url_for('sops_edit') }}">
+    <input type="hidden" name="call_type" value="{{ t }}">
+    <textarea name="steps" rows="{{ (sops[t] or [])|length + 1 if sops[t] else 4 }}" class="sopedit">{% for s in sops[t] %}{{ s.text }}
+{% endfor %}</textarea>
+    <button type="submit">Save {{ t }} SOP</button>
+  </form>
+  {% else %}
+  <ol>{% for s in sops[t] %}<li>{{ s.text }}</li>{% endfor %}</ol>
+  {% endif %}
+</div>
+{% endfor %}
+{% endblock %}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block title %}Units - CAD Lite{% endblock %}
+{% block content %}
+<h1>Units</h1>
+<div id="map" class="unitmap"></div>
+<table class="calls" id="unitTable">
+  <thead><tr><th>Unit</th><th>Responds to</th><th>Status</th><th>Last seen</th><th></th></tr></thead>
+  <tbody id="unitBody"></tbody>
+</table>
+<p class="muted">Units only show a location while they are on duty. Off duty means no location is stored.</p>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="{{ url_for('static', filename='units.js') }}"></script>
+{% endblock %}

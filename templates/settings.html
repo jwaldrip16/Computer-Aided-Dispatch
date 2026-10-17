@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Settings - CAD Lite{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Settings</h1>
+  <h2>Call alert voice</h2>
+  <p class="muted">This formats what the unit phones say when dispatch sends a call
+  to them. The Read button on the dispatch board uses the same format.</p>
+  <form method="post">
+    <label class="checkrow"><input type="checkbox" name="say_type" {% if fmt.say_type %}checked{% endif %}>
+      Say the call type (fire call, police call, medical call)</label>
+    <label class="checkrow"><input type="checkbox" name="say_address" {% if fmt.say_address %}checked{% endif %}>
+      Say the address</label>
+    <label class="checkrow"><input type="checkbox" name="say_nature" {% if fmt.say_nature %}checked{% endif %}>
+      Say the nature of the emergency</label>
+    <label class="checkrow"><input type="checkbox" name="say_time" {% if fmt.say_time %}checked{% endif %}>
+      Say the time of dispatch</label>
+    <p><b>Sounds like:</b> "{{ example }}"</p>
+    <button type="submit" class="primary">Save</button>
+  </form>
+</div>
+{% endblock %}

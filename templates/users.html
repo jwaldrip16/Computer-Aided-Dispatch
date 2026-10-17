@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+{% block title %}Users - CAD Lite{% endblock %}
+{% block content %}
+<div class="card">
+  <h1>Users</h1>
+  {% if error %}<p class="error">{{ error }}</p>{% endif %}
+  <table class="calls">
+    <thead><tr><th>Username</th><th>Role</th><th>Responds to</th></tr></thead>
+    <tbody>
+    {% for u in users %}
+      <tr>
+        <td>{{ u.username }}</td><td>{{ u.role }}</td>
+        <td>
+          {% if u.role == 'unit' %}
+          <form method="post" action="{{ url_for('user_types', uid=u.id) }}" class="unitTypes">
+            {% for t in ['police','fire','medical','other'] %}
+            <label class="checkrow"><input type="checkbox" name="unit_types" value="{{ t }}"
+              {% if t in (u['unit_types'] or '').split(',') %}checked{% endif %}> {{ t }}</label>
+            {% endfor %}
+            <button type="submit">Save</button>
+          </form>
+          {% else %}n/a{% endif %}
+        </td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <h2>Add a user</h2>
+  <form method="post">
+    <label>Username <input name="username" required></label>
+    <label>Password (6 or more characters) <input type="password" name="password" required></label>
+    <label>Role
+      <select name="role" id="roleSel">
+        <option value="dispatcher">Dispatcher</option>
+        <option value="unit">Unit (responds to calls)</option>
+        <option value="admin">Admin</option>
+      </select>
+    </label>
+    <div id="unitTypePick" style="display:none">
+      <b>Responds to</b>
+      {% for t in ['police','fire','medical','other'] %}
+      <label class="checkrow"><input type="checkbox" name="unit_types" value="{{ t }}"> {{ t }}</label>
+      {% endfor %}
+    </div>
+    <button type="submit">Add user</button>
+  </form>
+</div>
+<script>
+const sel = document.getElementById('roleSel');
+const pick = document.getElementById('unitTypePick');
+function toggle() { pick.style.display = sel.value === 'unit' ? '' : 'none'; }
+sel.addEventListener('change', toggle);
+toggle();
+</script>
+{% endblock %}
