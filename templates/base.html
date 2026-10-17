@@ -30,8 +30,10 @@
     <a href="{{ url_for('export_csv') }}">Export CSV</a>
     {% if me['role'] == 'admin' %}
       <a href="{{ url_for('users') }}">Users</a>
-      <a href="{{ url_for('audit') }}">Audit log</a>
       <a href="{{ url_for('settings_page') }}">Settings</a>
+    {% endif %}
+    {% if me['role'] != 'unit' %}
+    <a href="{{ url_for('audit') }}">Activity history</a>
     {% endif %}
     <span class="who">{{ me['username'] }}</span>
     <a href="{{ url_for('logout') }}">Log out</a>

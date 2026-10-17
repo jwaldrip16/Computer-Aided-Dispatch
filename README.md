@@ -169,6 +169,8 @@ pending queue until dispatch is ready.
   dispatched call re-pages the assigned units automatically (tone + voice again).
   Each active row also has a "Re-page" button that makes every unit on the call
   hear the call again.
+- If you remove every unit from an active call, the call goes back to the pending
+  queue on its own (a note is written, and unit phones drop the call).
 
 ## Lee County addresses
 
@@ -237,3 +239,10 @@ new unit hears the page only when someone presses **Re-page units (tone + voice
 again)** on the call page. Re-page makes every unit on the call tone and hear the call
 again, so it also works when someone missed the first page. Closed calls cannot be
 re-paged.
+
+## Activity history
+
+The Activity history link at the top shows the latest 200 things that happened:
+who created, sent, queued, closed or deleted calls, changed or removed units,
+re-paged, set unit statuses, and when units went on or off duty. Dispatchers and
+admins can open it, and each line links to the call it is about.

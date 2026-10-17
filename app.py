@@ -923,7 +923,15 @@ def call_units(call_id):
                 cur.append(name)
         units = ", ".join(cur)
     q("UPDATE calls SET units = %s WHERE id = %s", (units, call_id))
-    if units and c["notified_at"] and c["status"] != "closed":
+    if not units and c["notified_at"] and c["status"] not in ("closed", "pending"):
+        q("UPDATE calls SET status = 'pending', notified_at = NULL WHERE id = %s",
+          (call_id,))
+        q("INSERT INTO call_notes (call_id, author, text) VALUES (%s,%s,%s)",
+          (call_id, me["username"],
+           "All units removed; call sent back to the pending queue."))
+        log_audit(me["username"], "call_pending",
+                  "call %s (all units removed)" % call_id)
+    elif units and c["notified_at"] and c["status"] != "closed":
         q("UPDATE calls SET page_count = COALESCE(page_count, 0) + 1"
           " WHERE id = %s", (call_id,))
         q("INSERT INTO call_notes (call_id, author, text) VALUES (%s,%s,%s)",
@@ -1348,13 +1356,58 @@ def user_types(uid):
 
 
 @app.route("/audit")
-@admin_required
+@staff_required
 def audit():
+    import re
     me = current_user()
     rows = q("SELECT * FROM audit ORDER BY id DESC LIMIT 200")
+    out = []
     for r in rows:
-        r["created_at"] = r["created_at"].isoformat()
-    return render_template("audit.html", me=me, rows=rows)
+        d = r["detail"] or ""
+        a = r["action"]
+        m = re.search(r"call (\d+)", d)
+        cid = m.group(1) if m else None
+        def after(mark):
+            return d.split(mark, 1)[1].strip() if mark in d else ""
+        if a == "call_created":
+            text = "Created call %s (%s)" % (cid, after(":")) if cid else "Created a call"
+        elif a == "call_sent_to_units":
+            text = "Sent call %s to unit phones (tone + voice)" % cid if cid else "Sent a call to unit phones"
+        elif a == "call_pending":
+            if "all units removed" in d and cid:
+                text = ("Removed every unit from call %s; the call went back "
+                        "to the pending queue" % cid)
+            else:
+                text = "Moved call %s to the pending queue" % cid if cid else d
+        elif a == "units":
+            text = "Changed units on call %s to %s" % (cid, after("units:")) if cid else "Changed units"
+        elif a == "units_recommended":
+            text = "Looked up the closest on-duty units for call %s" % cid
+        elif a == "dispatch_unit_status":
+            text = "Dispatch set a unit status on call %s (%s)" % (cid, after(":"))
+        elif a == "unit_call_status":
+            text = "Unit status update on call %s (%s)" % (cid, after(":"))
+        elif a == "note_added":
+            text = "Added a note on call %s" % cid
+        elif a == "call_details":
+            text = "Edited the address or caller on call %s" % cid
+        elif a == "call_deleted":
+            text = "Deleted call %s" % cid
+        elif a == "status":
+            text = "Call %s status set to %s" % (cid, after("->")) if cid else d
+        elif a == "login":
+            text = "Signed in"
+        elif a == "setup":
+            text = "Created the first admin account"
+        elif a == "settings_saved":
+            text = "Saved settings (%s)" % d if d else "Saved settings"
+        elif a == "reset_call_numbers":
+            text = "Reset the call numbering"
+        else:
+            text = a.replace("_", " ") + (" (%s)" % d if d else "")
+        out.append({"created_at": r["created_at"].isoformat(),
+                    "who": r["username"] or "", "text": text, "cid": cid})
+    return render_template("audit.html", me=me, rows=out)
 
 
 if __name__ == "__main__":

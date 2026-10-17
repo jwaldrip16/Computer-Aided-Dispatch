@@ -1,11 +1,12 @@
 {% extends "base.html" %}
-{% block title %}Audit log - CAD Lite{% endblock %}
+{% block title %}Activity history - CAD Lite{% endblock %}
 {% block content %}
 <div class="card">
-  <h1>Audit log (latest 200)</h1>
+  <h1>Activity history (latest 200)</h1>
   <table class="calls">
-    <thead><tr><th>Time</th><th>User</th><th>Action</th><th>Detail</th></tr></thead>
-    <tbody>{% for r in rows %}<tr><td>{{ r.created_at }}</td><td>{{ r.username or '' }}</td><td>{{ r.action }}</td><td>{{ r.detail }}</td></tr>{% endfor %}</tbody>
+    <thead><tr><th>Time</th><th>Who</th><th>What</th><th>Call</th></tr></thead>
+    <tbody>{% for r in rows %}<tr><td><span class="ts">{{ r.created_at }}</span></td><td>{{ r.who }}</td><td>{{ r.text }}</td><td>{% if r.cid %}<a href="{{ url_for('call_view', call_id=r.cid) }}">Open call {{ r.cid }}</a>{% endif %}</td></tr>{% endfor %}</tbody>
   </table>
+  {% if not rows %}<p class="muted">No activity yet.</p>{% endif %}
 </div>
 {% endblock %}
