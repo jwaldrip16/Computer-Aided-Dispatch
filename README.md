@@ -175,6 +175,11 @@ pending queue until dispatch is ready.
   hear the call again.
 - If you remove every unit from an active call, the call goes back to the pending
   queue on its own (a note is written, and unit phones drop the call).
+- The units list spells each unit's status out in words next to the name
+  (on duty / off duty), so dispatch never has to guess from colors alone.
+- On the unit phone, each call shows the status of every unit on the call
+  (enroute, on scene, and so on) next to their name, and the Navigate button
+  opens Google Maps turn-by-turn directions straight to the call address.
 - Off-duty units cannot be added to a call, in the pending queue or the active queue.
   The board tells you which unit is off duty. Removing a unit always works, even if
   that unit is now off duty. Nearest only suggests on-duty units.

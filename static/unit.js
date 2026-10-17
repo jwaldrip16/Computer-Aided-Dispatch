@@ -140,6 +140,17 @@ function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, ch => ({'
 function escAttr(s) { return esc(s).replace(/'/g, '&#39;'); }
 function fmt(iso) { return iso ? new Date(iso).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}) : ''; }
 
+function unitList(c) {
+  const latest = {};
+  for (const e of (c.responses || [])) {
+    if (e.username) latest[String(e.username).trim().toLowerCase()] = e.status;
+  }
+  return (c.units || '').split(',').map(x => x.trim()).filter(Boolean).map(n => {
+    const st = latest[n.toLowerCase()];
+    return esc(n) + (st ? ' <span class="ustat">(' + esc(String(st).replace(/_/g, ' ')) + ')</span>' : '');
+  }).join(', ');
+}
+
 function cardHtml(c) {
   return '<div class="card unitcard row-' + c.id + '">' +
     '<div class="row spread">' +
@@ -148,7 +159,7 @@ function cardHtml(c) {
     '</div>' +
     '<p><b>Address:</b> ' + esc(c.address) + '</p>' +
     '<p><b>Priority:</b> <span class="tag p-' + c.priority + '">' + c.priority + '</span>' +
-    ' <b>Status:</b> ' + c.status + ' <b>Units:</b> ' + esc(c.units || '') + '</p>' +
+    ' <b>Status:</b> ' + c.status + ' <b>Units:</b> ' + unitList(c) + '</p>' +
     '<p class="muted">Came in ' + fmt(c.created_at) + '</p>' +
     '<div class="row respbar">' +
     (c.my_status ? '<span class="tag">' + c.my_status.replace('_', ' ') + '</span>' : '') +
@@ -156,9 +167,9 @@ function cardHtml(c) {
     '<button class="btn resp" data-act="on_scene" data-id="' + c.id + '">On scene</button>' +
     '<button class="btn resp" data-act="transporting" data-id="' + c.id + '">Transport</button>' +
     '<button class="btn resp" data-act="clear" data-id="' + c.id + '">Clear</button>' +
-    '<a class="btn nav" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=' +
-      encodeURIComponent((c.addr_lat != null && c.addr_lng != null) ? (c.addr_lat + ',' + c.addr_lng) : c.address) +
-    '">Navigate</a>' +
+    '<a class="btn nav" href="https://www.google.com/maps/dir/?api=1&destination=' +
+      encodeURIComponent((c.lat != null && c.lng != null) ? (c.lat + ',' + c.lng) : c.address) +
+    '&travelmode=driving&dir_action=navigate">Navigate</a>' +
     '</div>' +
     '<div class="row reasonrow hidden" id="reason-' + c.id + '">' +
     '<input id="reasonInput-' + c.id + '" placeholder="Why are you clearing? (not required)">' +

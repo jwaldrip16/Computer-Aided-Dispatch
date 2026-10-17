@@ -82,12 +82,15 @@ function fill(tbodyId, emptyId, list) {
 
 function unitChip(u) {
   const cls = u.unit_status === 'on_duty' ? 'u u-on' : 'u u-off';
+  const st = u.unit_status === 'on_duty' ? 'on duty'
+    : String(u.unit_status || 'off duty').replace(/_/g, ' ');
   const types = u.unit_types ? ' (' + u.unit_types.split(',').join(', ') + ')' : '';
   const loc = u.loc_updated
     ? ' <span class="uloc">location ' +
       new Date(u.loc_updated).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}) + '</span>'
     : '';
-  return '<span class="' + cls + '">' + esc(u.username) + esc(types) + loc + '</span>';
+  return '<span class="' + cls + '">' + esc(u.username) +
+    ' <span class="ustat">' + esc(st) + '</span>' + esc(types) + loc + '</span>';
 }
 
 function fillUnits(list) {
