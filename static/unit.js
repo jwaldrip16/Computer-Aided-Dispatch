@@ -101,8 +101,6 @@ function callSpeech(c) {
   if (FMT.say_type) parts.push(TITLES[c.call_type] + ' call');
   parts.push('Address: ' + (c.address == null ? '' : c.address));
   if (FMT.say_nature) parts.push('Nature: ' + (c.nature || ''));
-  if (FMT.say_time) parts.push('Dispatched at ' +
-    new Date(c.notified_at || c.created_at).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}));
   return parts.join('. ') + '.';
 }
 
@@ -227,8 +225,6 @@ document.addEventListener('click', e => {
     if (FMT.say_type) parts.push(TITLES[b.dataset.type] + ' call');
     parts.push('Address: ' + b.dataset.addr);
     if (FMT.say_nature) parts.push('Nature: ' + b.dataset.nat);
-    if (FMT.say_time) parts.push('Dispatched at ' +
-      new Date(b.dataset.time).toLocaleTimeString([], {hour: 'numeric', minute: '2-digit'}));
     const s = parts.join('. ') + '.';
     const again = 'Address: ' + b.dataset.addr + '.'
       + ' Nature: ' + b.dataset.nat + '.';

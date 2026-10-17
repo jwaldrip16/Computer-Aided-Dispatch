@@ -915,6 +915,13 @@ def call_units(call_id):
     me = current_user()
     c = _load_call(call_id)
     units = (request.form.get("units") or "").strip()
+    mode = (request.form.get("mode") or "").strip()
+    if mode == "add" and units:
+        cur = [t.strip() for t in (c["units"] or "").split(",") if t.strip()]
+        for name in [t.strip() for t in units.split(",") if t.strip()]:
+            if name not in cur:
+                cur.append(name)
+        units = ", ".join(cur)
     q("UPDATE calls SET units = %s WHERE id = %s", (units, call_id))
     if units and c["notified_at"] and c["status"] != "closed":
         q("UPDATE calls SET page_count = COALESCE(page_count, 0) + 1"

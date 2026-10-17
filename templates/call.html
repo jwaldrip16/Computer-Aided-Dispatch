@@ -32,10 +32,9 @@
       <p><b>Status:</b> {{ c.status|capitalize }}</p>
       {% if c.notified_at %}
       <p><b>Sent to unit phones:</b> <span class="ts">{{ c.notified_at }}</span></p>
-      {% elif c.status == 'pending' %}
-      <p><span class="tag">pending</span> Waiting in the pending queue. Assign
-        units below, then press Send to unit phones to dispatch.</p>
       {% else %}
+      {% if c.status == 'pending' %}<p><span class="tag">pending</span> Waiting in
+        the pending queue.</p>{% endif %}
       <form method="post" action="{{ url_for('call_notify', call_id=c.id) }}" class="inline">
         <button type="submit" class="btn primary">Send to unit phones (tone + voice)</button>
       </form>
@@ -61,12 +60,18 @@
         <div class="row chiprow">
           {% for u in unit_users %}<button type="button" class="btn unitchip" data-name="{{ u.username }}">{{ u.username }}</button>{% endfor %}
         </div>
+        {% if not c.notified_at %}
+        <p class="muted">Assigning units does not page them yet. Press
+          Send to unit phones above to tone and speak the call to the
+          assigned units.</p>
+        {% endif %}
         {% if c.notified_at %}
         <form method="post" action="{{ url_for('call_notify', call_id=c.id) }}" class="inline">
           <button type="submit" class="btn primary">Re-page units (tone + voice again)</button>
         </form>
-        <p class="muted">Re-page makes every unit on this call tone and hear the call again
-          on their phone. Use it after reassigning units or when someone missed the first page.</p>
+        <p class="muted">Saving changed units here re-pages the assigned units
+          automatically. Re-page makes every unit on this call tone and hear the
+          call again on their phone. Use it when someone missed the first page.</p>
         {% endif %}
         <p class="muted" id="recNote"></p>
       </div>

@@ -42,6 +42,14 @@ function rowHtml(c) {
     ? ` <button class="btn near" data-id="${c.id}">Nearest</button>` : '';
   const clrBtn = c.status !== 'closed'
     ? ` <button class="btn clr" data-id="${c.id}">Clear</button>` : '';
+  const unitsCtl = open
+    ? (!c.notified_at
+      ? ` <input class="units-inp" placeholder="unit names"> ` +
+        `<button class="btn bassign" data-id="${c.id}">Assign</button>`
+      : ` <input class="units-inp" placeholder="add more units"> ` +
+        `<button class="btn badd" data-id="${c.id}">Add units</button> ` +
+        `<button class="btn bpage" data-id="${c.id}">Re-page</button>`)
+    : '';
   return `<tr ${open ? 'class="row-' + c.id + '"' : ''}>` +
     `<td>${fmt(c.created_at)}</td>` +
     `<td><span class="tag ${c.call_type}">${c.call_type}</span></td>` +
@@ -53,7 +61,7 @@ function rowHtml(c) {
     `<td>${esc(c.dispatcher || '')}</td>` +
     `<td><a href="/call/${c.id}">Open</a> ` +
     `<button class="btn read" data-id="${c.id}">Read</button> ` +
-    send + queueBtn + nearBtn + clrBtn + (IS_ADMIN ? ` <button class="btn del" data-id="${c.id}">Delete</button>` : '') +
+    send + queueBtn + nearBtn + unitsCtl + clrBtn + (IS_ADMIN ? ` <button class="btn del" data-id="${c.id}">Delete</button>` : '') +
     `</td>` +
     `</tr>`;
 }
@@ -129,6 +137,33 @@ document.addEventListener('click', async e => {
   if (n) {
     n.disabled = true;
     await fetch(`/call/${n.dataset.id}/notify`, {method: 'POST'});
+    poll();
+  }
+  const ba = e.target.closest('button.bassign');
+  if (ba) {
+    const inp = ba.closest('tr').querySelector('input.units-inp');
+    ba.disabled = true;
+    const fd = new FormData();
+    fd.set('units', inp.value.trim());
+    await fetch(`/call/${ba.dataset.id}/units`, {method: 'POST', body: fd});
+    poll();
+  }
+  const bu = e.target.closest('button.badd');
+  if (bu) {
+    const inp = bu.closest('tr').querySelector('input.units-inp');
+    const v = inp.value.trim();
+    if (!v) return;
+    bu.disabled = true;
+    const fd = new FormData();
+    fd.set('units', v);
+    fd.set('mode', 'add');
+    await fetch(`/call/${bu.dataset.id}/units`, {method: 'POST', body: fd});
+    poll();
+  }
+  const bp = e.target.closest('button.bpage');
+  if (bp) {
+    bp.disabled = true;
+    await fetch(`/call/${bp.dataset.id}/notify`, {method: 'POST'});
     poll();
   }
   const cl = e.target.closest('button.clr');

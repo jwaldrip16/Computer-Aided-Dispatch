@@ -155,9 +155,17 @@ pending queue until dispatch is ready.
 - Pressing "Send to units" on a call with no units assigned moves the call to the pending
   queue automatically and writes a note ("No units available; call is pending."). Nothing
   is sent to phones until units are assigned.
-- When you are ready, open the call from the queue, assign units, and press
-  "Send to unit phones". The call moves to Dispatched and the phones get the tone and
-  voice alert. Units never see pending calls.
+- Assigning happens in the pending queue. Each pending row has a unit box and an
+  Assign button (or open the call and use the units box and the one-tap unit buttons).
+  Assigning does not page the phones yet.
+- When you are ready, press "Send to unit phones" (on the call page, or "Send to
+  units" on the board row). The call moves to Dispatched and the phones get the tone
+  and voice alert. Units never see pending calls.
+- On an active (dispatched) call you can add more units: each active row has an
+  "Add units" box, and the call page units box still works. Saving units on a
+  dispatched call re-pages the assigned units automatically (tone + voice again).
+  Each active row also has a "Re-page" button that makes every unit on the call
+  hear the call again.
 
 ## Lee County addresses
 
