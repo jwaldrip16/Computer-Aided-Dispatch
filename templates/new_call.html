@@ -34,8 +34,8 @@
     <div class="row">
       <label>Type
         <select name="call_type" id="callType">
-          {% for t in ['police','fire','medical','other'] %}
-          <option value="{{ t }}" {% if t == ctype %}selected{% endif %}>{{ t|capitalize }}</option>
+          {% for t in ['police','fire','medical','other','accident'] %}
+          <option value="{{ t }}" {% if t == ctype %}selected{% endif %}>{% if t == 'accident' %}Traffic accident w/ injuries{% else %}{{ t|capitalize }}{% endif %}</option>
           {% endfor %}
         </select>
       </label>

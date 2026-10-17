@@ -64,7 +64,7 @@ function beep(freq, start, dur) {
 
 function toneFor(ctype, emergency) {
   if (!ARMED) return;
-  const cycles = emergency ? 4 : 3;
+  const cycles = emergency ? 4 : (ctype == 'accident' ? 2 : 3);
   let secs = 0;
   for (let i = 0; i < cycles; i++) {
     if (ctype === 'police') {
@@ -75,6 +75,11 @@ function toneFor(ctype, emergency) {
       for (let k = 0; k < 4; k++) { beep(950, secs, 0.25); secs += 0.45; }
       secs += 0.2;
     } else if (ctype === 'medical') {
+      for (let k = 0; k < 3; k++) { beep(620, secs, 0.5); secs += 0.9; }
+    } else if (ctype === 'accident') {
+      beep(1250, secs, 0.5);
+      beep(800, secs + 0.6, 0.5);
+      secs += 1.4;
       for (let k = 0; k < 3; k++) { beep(620, secs, 0.5); secs += 0.9; }
     } else {
       beep(1000, secs, 0.7);
@@ -94,11 +99,11 @@ function stopAlert() {
   $('silenceBtn').disabled = true;
 }
 
-const TITLES = {police: 'Police', fire: 'Fire', medical: 'Medical', other: 'Call'};
+const TITLES = {police: 'Police', fire: 'Fire', medical: 'Medical', other: 'Call', accident: 'Traffic accident w/ injuries'};
 
 function callSpeech(c) {
   const parts = [];
-  if (FMT.say_type) parts.push(TITLES[c.call_type] + ' call');
+  if (FMT.say_type) parts.push(c.call_type == 'accident' ? 'Traffic accident with injuries' : TITLES[c.call_type] + ' call');
   parts.push('Address: ' + (c.address == null ? '' : c.address));
   if (FMT.say_nature) parts.push('Nature: ' + (c.nature || ''));
   return parts.join('. ') + '.';

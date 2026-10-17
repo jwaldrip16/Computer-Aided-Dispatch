@@ -9,7 +9,8 @@ What it does:
   call again any time. A Voice ON/OFF button turns it off. It uses the free
   speech built into Chrome, Edge, and Safari, so there is no API key and no
   extra cost. The dispatch computer needs its volume up.
-- SOP checklists. Built-in step-by-step SOPs for police, fire, and medical
+- SOP checklists. Built-in step-by-step SOPs for police, fire, medical, and
+  traffic accident calls
   calls. The dispatcher checks off steps as they go. An admin can edit every
   SOP on the SOPs page (one step per line).
 - Sharing. Each call has a Share button that makes a private read-only link.
@@ -62,6 +63,9 @@ and voice alert plays.
   traveled on the call page (straight-line between fixes, so treat it as close
   to, not exactly, road miles).
 - Tones differ by call type: police is a two-tone hi/lo, fire is fast beeps,
+  medical is three low beeps. A "Traffic accident w/ injuries" call is both a
+  police and a medical call: its tone plays the police two-tone and the medical
+  beeps, and the voice says "Traffic accident with injuries".
   medical is slow low beeps, other is the original two-tone. An emergency
   priority call sounds one extra round. The spoken announcement plays twice,
   then the voice says the time.

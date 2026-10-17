@@ -3,9 +3,9 @@
 {% block content %}
 <h1>Standard operating procedures</h1>
 {% if me['role'] == 'admin' %}<p class="muted">You are an admin, so you can edit the steps below. One step per line.</p>{% endif %}
-{% for t in ['police','fire','medical','other'] %}
+{% for t in ['police','fire','medical','other','accident'] %}
 <div class="card">
-  <h2>{{ t|capitalize }} calls</h2>
+  <h2>{% if t == 'accident' %}Traffic accident{% else %}{{ t|capitalize }}{% endif %} calls</h2>
   {% if me['role'] == 'admin' %}
   <form method="post" action="{{ url_for('sops_edit') }}">
     <input type="hidden" name="call_type" value="{{ t }}">

@@ -35,6 +35,7 @@ table.calls tr.flash, .card.flash { animation: flash 1.2s ease 5; }
 .tag.fire { background:var(--fire); }
 .tag.medical { background:var(--medical); }
 .tag.other { background:var(--other); }
+.tag.accident { background:#6d3d9c; }
 .tag.p-emergency { background:#b3261e; }
 .tag.p-urgent { background:#c46a00; }
 .tag.p-routine { background:#1a4f8b; }

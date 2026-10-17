@@ -1,6 +1,6 @@
 """CAD Lite: a small computer-aided dispatch app.
 Python + Flask + PostgreSQL. Text-to-speech for address and nature,
-SOP checklists for police / fire / medical calls, call sharing and export.
+SOP checklists for police / fire / medical / traffic accident calls, call sharing and export.
 """
 import csv
 import io
@@ -24,7 +24,7 @@ DATABASE_URL = os.environ.get("DATABASE_URL", "")
 ADMIN_USER = os.environ.get("ADMIN_USER", "")
 ADMIN_PASS = os.environ.get("ADMIN_PASS", "")
 
-CALL_TYPES = ("police", "fire", "medical", "other")
+CALL_TYPES = ("police", "fire", "medical", "other", "accident")
 STATUSES = ("open", "pending", "dispatched", "closed")
 PRIORITIES = ("low", "routine", "urgent", "emergency")
 
@@ -42,6 +42,8 @@ NATURES = {
                 "allergic reaction", "serious bleeding", "fall injury",
                 "overdose", "childbirth", "poisoning", "electrocution",
                 "drowning"],
+    "accident": ["traffic accident with injuries", "traffic accident no injuries",
+                 "unknown injuries", "hit and run", "vehicle rollover"],
     "other": ["utility outage", "water problem", "animal problem",
               "traffic hazard", "weather damage", "locked in or out", "other"],
 }
@@ -82,6 +84,17 @@ DEFAULT_SOPS = {
         "Enter the call at the right priority and assign EMS units.",
         "Log every update with the time, and stay on the line until EMS arrives if the caller needs it.",
         "Close the call after units clear the scene, and note the patient outcome when it is known.",
+    ],
+    "accident": [
+        "Confirm the exact address, direction of travel, and nearest cross street.",
+        "Ask how many vehicles are involved and whether anyone is hurt.",
+        "Count the injured people and get the main problems: breathing, bleeding, unconscious, trapped.",
+        "Ask if anyone is trapped in a vehicle, or if there is a fire or a fuel leak.",
+        "Get vehicle descriptions and, if a driver left the scene, a direction of travel.",
+        "Enter the call at emergency or urgent priority as the injuries suggest.",
+        "Assign both police and medical units, then press Send to unit phones.",
+        "Log every update in the call notes with the time.",
+        "Close the call when police and medical units clear the scene, and note the outcome.",
     ],
     "other": [
         "Confirm the exact address or location.",
@@ -488,7 +501,8 @@ def call_status(call_id):
 ALERT_KEYS = {"say_type": True, "say_address": True, "say_nature": True,
               "say_time": True}
 TYPE_TITLES = {"police": "Police", "fire": "Fire", "medical": "Medical",
-               "other": "Call"}
+               "other": "Call",
+               "accident": "Traffic accident w/ injuries"}
 
 
 def get_alert_format():
@@ -503,7 +517,10 @@ def get_alert_format():
 def alert_text(call, fmt):
     parts = []
     if fmt.get("say_type"):
-        parts.append(TYPE_TITLES.get(call["call_type"], "Call") + " call")
+        if call["call_type"] == "accident":
+            parts.append("Traffic accident with injuries")
+        else:
+            parts.append(TYPE_TITLES.get(call["call_type"], "Call") + " call")
     if fmt.get("say_address"):
         parts.append("Address: %s" % (call["address"] or ""))
     if fmt.get("say_nature"):

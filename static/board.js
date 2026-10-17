@@ -19,11 +19,11 @@ function fmt(iso) {
   return d.toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'});
 }
 
-const TITLES = {police: 'Police', fire: 'Fire', medical: 'Medical', other: 'Call'};
+const TITLES = {police: 'Police', fire: 'Fire', medical: 'Medical', other: 'Call', accident: 'Traffic accident w/ injuries'};
 
 function callSpeech(c) {
   const parts = [];
-  if (FMT.say_type) parts.push(TITLES[c.call_type] + ' call');
+  if (FMT.say_type) parts.push(c.call_type == 'accident' ? 'Traffic accident with injuries' : TITLES[c.call_type] + ' call');
   if (FMT.say_address) parts.push('Address: ' + (c.address || ''));
   if (FMT.say_nature) parts.push('Nature: ' + (c.nature || ''));
   if (FMT.say_time) parts.push('Dispatched at ' +
