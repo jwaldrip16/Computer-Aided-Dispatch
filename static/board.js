@@ -150,7 +150,8 @@ document.addEventListener('click', async e => {
     ba.disabled = true;
     const fd = new FormData();
     fd.set('units', inp.value.trim());
-    await fetch(`/call/${ba.dataset.id}/units`, {method: 'POST', body: fd});
+    const res = await fetch(`/call/${ba.dataset.id}/units`, {method: 'POST', body: fd});
+    if (!res.ok) alert(await res.text());
     poll();
   }
   const bu = e.target.closest('button.badd');
@@ -162,7 +163,8 @@ document.addEventListener('click', async e => {
     const fd = new FormData();
     fd.set('units', v);
     fd.set('mode', 'add');
-    await fetch(`/call/${bu.dataset.id}/units`, {method: 'POST', body: fd});
+    const res = await fetch(`/call/${bu.dataset.id}/units`, {method: 'POST', body: fd});
+    if (!res.ok) alert(await res.text());
     poll();
   }
   const ud = e.target.closest('button.udel');

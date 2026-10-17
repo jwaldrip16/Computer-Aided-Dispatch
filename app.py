@@ -938,6 +938,18 @@ def call_units(call_id):
     c = _load_call(call_id)
     units = (request.form.get("units") or "").strip()
     mode = (request.form.get("mode") or "").strip()
+    req = [t.strip() for t in units.split(",") if t.strip()]
+    existing = [t.strip() for t in (c["units"] or "").split(",") if t.strip()]
+    added = [n for n in req if n not in existing]
+    if added:
+        offd = q("SELECT username FROM users WHERE role = 'unit'"
+                 " AND lower(username) = ANY(%s)"
+                 " AND COALESCE(unit_status, 'off_duty') <> 'on_duty'",
+                 ([n.lower() for n in added],))
+        if offd:
+            bad = ", ".join(sorted(r["username"] for r in offd))
+            return ("You cannot assign an off-duty unit: %s. "
+                    "Put the unit on duty first." % bad), 400
     if mode == "add" and units:
         cur = [t.strip() for t in (c["units"] or "").split(",") if t.strip()]
         for name in [t.strip() for t in units.split(",") if t.strip()]:

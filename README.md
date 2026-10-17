@@ -175,6 +175,9 @@ pending queue until dispatch is ready.
   hear the call again.
 - If you remove every unit from an active call, the call goes back to the pending
   queue on its own (a note is written, and unit phones drop the call).
+- Off-duty units cannot be added to a call, in the pending queue or the active queue.
+  The board tells you which unit is off duty. Removing a unit always works, even if
+  that unit is now off duty. Nearest only suggests on-duty units.
 
 ## Lee County addresses
 
