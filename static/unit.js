@@ -1,5 +1,6 @@
 let ARMED = false, AC = null, OSC = [], VOICE_T = null;
-let ON_DUTY = false, WATCH = null, LAST_PING = 0;
+let ON_DUTY = false, WATCH = null, WATCH_HIGH = false, LAST_PING = 0;
+let LOC_ERR = '', DEGRADED = false, PERM_BLOCKED = false;
 const seen = new Set();
 let firstLoad = true;
 const $ = id => document.getElementById(id);
@@ -208,9 +209,15 @@ async function poll() {
     const btn = $('dutyBtn');
     btn.textContent = ON_DUTY ? 'Go off duty' : 'Go on duty';
     btn.classList.toggle('primary', !ON_DUTY);
-    $('locNote').textContent = ON_DUTY
-      ? 'You are on duty. Dispatch can see your location.'
-      : 'You are off duty. Dispatch cannot see your location.';
+    if (ON_DUTY) {
+      $('locNote').textContent = LOC_ERR ||
+        'You are on duty. Dispatch can see your location.';
+      gateLocation();
+    } else {
+      stopLocation();
+      $('locNote').textContent =
+        'You are off duty. Dispatch cannot see your location.';
+    }
     $('activeCards').innerHTML = d.active.map(cardHtml).join('');
     restoreReasons(keep);
     $('noActive').classList.toggle('hidden', d.active.length > 0);
@@ -263,20 +270,55 @@ $('dutyForm').addEventListener('submit', async e => {
     body: JSON.stringify({status: next})
   });
   if (!r.ok) return;
-  if (next === 'on_duty' && navigator.geolocation) {
-    if (WATCH) navigator.geolocation.clearWatch(WATCH);
-    WATCH = navigator.geolocation.watchPosition(sendFix, () => {}, {enableHighAccuracy: true, timeout: 20000});
-  } else {
-    if (WATCH) { navigator.geolocation.clearWatch(WATCH); WATCH = null; }
-  }
+  if (next === 'on_duty') { DEGRADED = false; PERM_BLOCKED = false; }
   poll();
 });
+
+function startWatch(high) {
+  if (!navigator.geolocation) {
+    LOC_ERR = 'This phone cannot share its location.';
+    return;
+  }
+  if (WATCH) navigator.geolocation.clearWatch(WATCH);
+  WATCH_HIGH = high;
+  WATCH = navigator.geolocation.watchPosition(sendFix, locFail,
+    high ? {enableHighAccuracy: true, timeout: 15000}
+         : {enableHighAccuracy: false, timeout: 25000});
+}
+
+function stopLocation() {
+  if (WATCH) { navigator.geolocation.clearWatch(WATCH); WATCH = null; }
+  LOC_ERR = '';
+}
+
+// Keeps the GPS watch in step with duty, whatever set it: the unit's own
+// button, dispatch putting them on duty, or a page reload while on duty.
+function gateLocation() {
+  if (!ON_DUTY) { stopLocation(); return; }
+  if (PERM_BLOCKED) return;
+  if (!WATCH) startWatch(DEGRADED);
+}
+
+function locFail(err) {
+  if (WATCH) { navigator.geolocation.clearWatch(WATCH); WATCH = null; }
+  const code = err && err.code ? err.code : 0;
+  if (code === 1) {
+    PERM_BLOCKED = true;
+    LOC_ERR = 'Location permission is blocked. Turn on Location for this app in the phone settings, then reload this page.';
+  } else if (!DEGRADED) {
+    DEGRADED = true;
+    startWatch(false);
+  } else {
+    LOC_ERR = 'The phone cannot get a location yet. Dispatch will see it as soon as it does.';
+  }
+}
 
 function sendFix(pos) {
   if (!ON_DUTY) return;
   const now = Date.now();
   if (now - LAST_PING < 10000) return;
   LAST_PING = now;
+  LOC_ERR = '';
   fetch('/api/unit/status', {
     method: 'POST',
     headers: {'Content-Type': 'application/json'},
