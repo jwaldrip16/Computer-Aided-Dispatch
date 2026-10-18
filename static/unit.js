@@ -17,6 +17,23 @@ function spAddr(a) {
     .trim().replace(/,+$/, '');
 }
 
+let _VOICE = null;
+function pickVoice() {
+  try {
+    const vs = speechSynthesis.getVoices() || [];
+    if (!vs.length) return _VOICE;
+    if (SVOICE) {
+      const m = vs.find(v => (v.name || '').toLowerCase() == SVOICE.toLowerCase());
+      if (m) { _VOICE = m; return m; }
+    }
+    const good = vs.filter(v => (v.lang || '').toLowerCase().indexOf('en') == 0
+      && !/samantha/i.test(v.name));
+    _VOICE = good[0] || vs.find(v => !/samantha/i.test(v.name)) || null;
+    return _VOICE;
+  } catch (e) { return null; }
+}
+try { speechSynthesis.addEventListener('voiceschanged', pickVoice); } catch (e) {}
+
 function speakMany(texts, onDone) {
   if (!('speechSynthesis' in window)) { if (onDone) setTimeout(onDone, 800); return; }
   try {
@@ -26,6 +43,7 @@ function speakMany(texts, onDone) {
     for (const t of texts) {
       const u = new SpeechSynthesisUtterance(t);
       u.rate = 0.95;
+      u.voice = pickVoice();
       last = u;
       speechSynthesis.speak(u);
     }
@@ -56,6 +74,7 @@ function arm() {
     try {
       speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance('Tone and voice are on.');
+      u.voice = pickVoice();
       speechSynthesis.speak(u);
     } catch (e) { canSpeak = false; }
   }
@@ -167,7 +186,8 @@ function callSpeech(c) {
   const parts = [];
   if (ME_NAME) parts.push(ME_NAME + ', respond');
   if (FMT.say_type) parts.push(c.call_type == 'accident' ? 'Traffic accident with injuries' : TITLES[c.call_type] + ' call');
-  parts.push('Address: ' + spAddr(c.address));
+  parts.push('Address: ' + spAddr(c.address) +
+    (FMT.say_cross && c.cross_street ? ' at ' + c.cross_street : ''));
   if (FMT.say_nature) parts.push('Nature: ' + (c.nature || ''));
   if (c.response_channel) parts.push('Respond on ' + c.response_channel);
   return parts.join('. ') + '.';
@@ -207,7 +227,8 @@ function nowTime() {
 
 function speakAlert(c, onDone) {
   const s = callSpeech(c);
-  const again = 'Address: ' + spAddr(c.address) + '.'
+  const again = 'Address: ' + spAddr(c.address) +
+    (FMT.say_cross && c.cross_street ? ' at ' + c.cross_street : '') + '.'
     + ' Nature: ' + (c.nature == null ? '' : c.nature) + '.'
     + (c.response_channel ? ' Respond on ' + c.response_channel + '.' : '');
   speakMany([s, again, 'The time is ' + nowTime() + '.'], onDone);
@@ -246,9 +267,11 @@ function cardHtml(c) {
   return '<div class="card unitcard row-' + c.id + '">' +
     '<div class="row spread">' +
     '<h2><span class="tag ' + c.call_type + '">' + c.call_type + '</span> ' + esc(c.nature) + '</h2>' +
-    '<button class="btn read" data-id="' + c.id + '" data-addr="' + escAttr(c.address + (c.apt ? ', Apt ' + c.apt : '')) + '" data-nat="' + escAttr(c.nature) + '" data-type="' + c.call_type + '" data-time="" data-ch="' + escAttr(c.response_channel || '') + '" data-time="' + escAttr(c.notified_at || c.created_at || '') + '">Read</button>' +
+    '<button class="btn read" data-id="' + c.id + '" data-addr="' + escAttr(c.address + (c.apt ? ', Apt ' + c.apt : '') +
+          (c.cross_street ? ' at ' + c.cross_street : '')) + '" data-nat="' + escAttr(c.nature) + '" data-type="' + c.call_type + '" data-time="" data-ch="' + escAttr(c.response_channel || '') + '" data-time="' + escAttr(c.notified_at || c.created_at || '') + '">Read</button>' +
     '</div>' +
-    '<p><b>Address:</b> ' + esc(c.address) + (c.apt ? ' &middot; Apt ' + esc(c.apt) : '') + '</p>' +
+    '<p><b>Address:</b> ' + esc(c.address) + (c.apt ? ' &middot; Apt ' + esc(c.apt) : '') +
+    (c.cross_street ? ' &middot; at ' + esc(c.cross_street) : '') + '</p>' +
     '<p><b>Priority:</b> <span class="tag p-' + c.priority + '">' + c.priority + '</span>' +
     ' <b>Status:</b> ' + c.status + ' <b>Units:</b> ' + unitList(c) + '</p>' +
     '<p class="muted">Came in ' + fmt(c.created_at) + '</p>' +
@@ -258,13 +281,21 @@ function cardHtml(c) {
     '<button class="btn resp" data-act="on_scene" data-id="' + c.id + '">On scene</button>' +
     '<button class="btn resp" data-act="transporting" data-id="' + c.id + '">Transport</button>' +
     '<button class="btn resp" data-act="clear" data-id="' + c.id + '">Clear</button>' +
-    '<button class="btn read pagebtn" data-id="' + c.id + '" data-page="' + (c.page_id || '') + '" data-addr="' + escAttr(c.address + (c.apt ? ', Apt ' + c.apt : '')) + '" data-nat="' + escAttr(c.nature) + '" data-type="' + c.call_type + '" data-ch="' + escAttr(c.response_channel || '') + '">Hear page again</button>' +
+    '<button class="btn read pagebtn" data-id="' + c.id + '" data-page="' + (c.page_id || '') + '" data-addr="' + escAttr(c.address + (c.apt ? ', Apt ' + c.apt : '') +
+          (c.cross_street ? ' at ' + c.cross_street : '')) + '" data-nat="' + escAttr(c.nature) + '" data-type="' + c.call_type + '" data-ch="' + escAttr(c.response_channel || '') + '">Hear page again</button>' +
     '<a class="btn nav" href="https://www.google.com/maps/dir/?api=1&destination=' +
       encodeURIComponent((c.lat != null && c.lng != null) ? (c.lat + ',' + c.lng) : c.address) +
     '&travelmode=driving&dir_action=navigate">Navigate</a>' +
     '</div>' +
     '<div class="row reasonrow hidden" id="reason-' + c.id + '">' +
     '<input id="reasonInput-' + c.id + '" placeholder="Why are you clearing? (not required)">' +
+    '</div>' +
+    '<div class="notelist">' +
+      (c.notes || []).map(n =>
+        '<p class="muted"><b>' + esc(n.author) + '</b> ' + esc(fmt(n.created_at)) +
+        ': ' + esc(n.text) + '</p>').join('') +
+      '<div class="row noterow"><input id="noteInput-' + c.id + '" placeholder="Note for dispatch...">' +
+      '<button class="btn noteadd" data-id="' + c.id + '">Send note</button></div>' +
     '</div>' +
     '</div>';
 }
@@ -283,9 +314,21 @@ function restoreReasons(keep) {
     if (rr && inp) { rr.classList.remove('hidden'); inp.value = keep[id]; }
   }
 }
+function keepNoteInputs() {
+  const keep = {};
+  document.querySelectorAll('.noterow input').forEach(i => { keep[i.id] = i.value; });
+  return keep;
+}
+function restoreNoteInputs(keep) {
+  for (const id in keep) {
+    const inp = document.getElementById(id);
+    if (inp) inp.value = keep[id];
+  }
+}
 
 async function poll() {
   const keep = keepReasons();
+  const keepN = keepNoteInputs();
   try {
     const r = await fetch('/api/unit-board');
     if (r.status === 401) { location.href = '/login'; return; }
@@ -308,6 +351,7 @@ async function poll() {
     }
     $('activeCards').innerHTML = d.active.map(cardHtml).join('');
     restoreReasons(keep);
+    restoreNoteInputs(keepN);
     $('noActive').classList.toggle('hidden', d.active.length > 0);
     $('recentList').innerHTML = d.recent.map(c =>
       '<li>' + fmt(c.created_at) + ' <span class="tag ' + c.call_type + '">' + c.call_type + '</span> ' +
@@ -435,4 +479,22 @@ document.addEventListener('click', async e => {
       body: JSON.stringify({call_id: Number(id), status: act, reason: reason}) });
     if (r.ok) { poll(); } else { b.disabled = false; b.textContent = 'Try again'; }
   } catch (err) { b.disabled = false; b.textContent = 'Try again'; }
+});
+
+document.addEventListener('click', async e => {
+  const nb = e.target.closest('button.noteadd');
+  if (!nb) return;
+  const id = nb.dataset.id;
+  const inp = document.getElementById('noteInput-' + id);
+  const text = (inp.value || '').trim();
+  if (!text) { inp.focus(); return; }
+  nb.disabled = true;
+  const fd = new FormData(); fd.append('text', text);
+  try {
+    const r = await fetch('/api/call/' + id + '/note', {method: 'POST', body: fd});
+    if (r.ok) { inp.value = ''; poll(); } else {
+      nb.disabled = false;
+      inp.placeholder = r.status === 403 ? 'Call is closed' : 'Could not send';
+    }
+  } catch (err) { nb.disabled = false; }
 });

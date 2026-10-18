@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS calls (
   nature TEXT NOT NULL,
   address TEXT NOT NULL,
   apt TEXT,
+  cross_street TEXT,
   priority TEXT NOT NULL DEFAULT 'routine',
   caller_name TEXT,
   caller_phone TEXT,

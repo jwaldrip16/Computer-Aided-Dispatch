@@ -2,6 +2,22 @@ let VOICE_ON = localStorage.getItem('cad_voice') !== 'off';
 const seen = new Set();
 let firstLoad = true;
 const $ = id => document.getElementById(id);
+let _VOICE = null;
+function pickVoice() {
+  try {
+    const vs = speechSynthesis.getVoices() || [];
+    if (!vs.length) return _VOICE;
+    if (SVOICE) {
+      const m = vs.find(v => (v.name || '').toLowerCase() == SVOICE.toLowerCase());
+      if (m) { _VOICE = m; return m; }
+    }
+    const good = vs.filter(v => (v.lang || '').toLowerCase().indexOf('en') == 0
+      && !/samantha/i.test(v.name));
+    _VOICE = good[0] || vs.find(v => !/samantha/i.test(v.name)) || null;
+    return _VOICE;
+  } catch (e) { return null; }
+}
+try { speechSynthesis.addEventListener('voiceschanged', pickVoice); } catch (e) {}
 
 function speak(text) {
   if (!VOICE_ON || !('speechSynthesis' in window)) return;
@@ -10,6 +26,7 @@ function speak(text) {
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.rate = 0.95;
+    u.voice = pickVoice();
     // Chrome can drop an utterance queued in the same tick as a cancel
     if (busy) setTimeout(() => { try { speechSynthesis.speak(u); } catch (e) {} }, 150);
     else speechSynthesis.speak(u);
@@ -68,17 +85,25 @@ function rowHtml(c) {
         `<button class="btn badd" data-id="${c.id}">Add units</button> ` +
         `<button class="btn bpage" data-id="${c.id}">Re-page</button>`)
     : '';
+  const notesCell = '<div class="notelist">' +
+    (c.notes || []).map(n =>
+      `<div class="muted"><b>${esc(n.author)}</b> ${esc(fmt(n.created_at))}: ${esc(n.text)}</div>`).join('') +
+    (open ? `<div class="row noterow"><input id="noteInput-${c.id}" placeholder="Note for units...">` +
+      `<button class="btn noteadd" data-id="${c.id}">Note</button></div>` : '') +
+    '</div>';
   return `<tr ${open ? 'class="row-' + c.id + '"' : ''}>` +
     `<td>${fmt(c.created_at)}</td>` +
     `<td><span class="tag ${c.call_type}">${c.call_type}</span></td>` +
     `<td>${esc(c.nature)}</td>` +
-    `<td>${esc(c.address)}${c.apt ? ' &middot; Apt ' + esc(c.apt) : ''}${c.response_channel ? ' &middot; Ch ' + esc(c.response_channel) : ''}</td>` +
+    `<td>${esc(c.address)}${c.apt ? ' &middot; Apt ' + esc(c.apt) : ''}${c.cross_street ? ' &middot; at ' + esc(c.cross_street) : ''}${c.response_channel ? ' &middot; Ch ' + esc(c.response_channel) : ''}</td>` +
     `<td><span class="tag p-${c.priority}">${c.priority}</span></td>` +
     `<td>${c.status}</td>` +
     `<td>${unitsCell}</td>` +
+    `<td>${notesCell}</td>` +
     `<td>${esc(c.dispatcher || '')}</td>` +
     `<td><a href="/call/${c.id}">Open</a> ` +
-    `<button class="btn read" data-id="${c.id}" data-type="${c.call_type}" data-rc="${escAttr(c.response_channel || '')}" data-addr="${escAttr(spAddr(c.address) + (c.apt ? ', Apt ' + c.apt : '') || 'not given')}" data-nat="${escAttr(c.nature || 'not given')}">Read</button> ` +
+    `<button class="btn read" data-id="${c.id}" data-type="${c.call_type}" data-rc="${escAttr(c.response_channel || '')}" data-addr="${escAttr(spAddr(c.address) + (c.apt ? ', Apt ' + c.apt : '') +
+      (c.cross_street ? ' at ' + c.cross_street : '') || 'not given')}" data-nat="${escAttr(c.nature || 'not given')}">Read</button> ` +
     send + queueBtn + nearBtn + unitsCtl + clrBtn + (IS_ADMIN ? ` <button class="btn del" data-id="${c.id}">Delete</button>` : '') +
     `</td>` +
     `</tr>`;
@@ -123,7 +148,38 @@ function fillUnits(list) {
     : '<span class="muted">No units</span>';
 }
 
+function keepNoteInputs() {
+  const keep = {};
+  document.querySelectorAll('.noterow input').forEach(i => { keep[i.id] = i.value; });
+  return keep;
+}
+function restoreNoteInputs(keep) {
+  for (const id in keep) {
+    const inp = document.getElementById(id);
+    if (inp) inp.value = keep[id];
+  }
+}
+
+document.addEventListener('click', async e => {
+  const nb = e.target.closest('button.noteadd');
+  if (!nb) return;
+  const id = nb.dataset.id;
+  const inp = document.getElementById('noteInput-' + id);
+  const text = (inp.value || '').trim();
+  if (!text) { inp.focus(); return; }
+  nb.disabled = true;
+  const fd = new FormData(); fd.append('text', text);
+  try {
+    const r = await fetch('/api/call/' + id + '/note', {method: 'POST', body: fd});
+    if (r.ok) { inp.value = ''; poll(); } else {
+      nb.disabled = false;
+      inp.placeholder = r.status === 403 ? 'Call is closed' : 'Could not send';
+    }
+  } catch (err) { nb.disabled = false; }
+});
+
 async function poll() {
+  const keepN = keepNoteInputs();
   try {
     const r = await fetch('/api/board');
     if (r.status === 401) { location.href = '/login'; return; }
@@ -132,6 +188,7 @@ async function poll() {
     fill('pendingBody', 'noPending', d.pending || []);
     fill('recentBody', 'noRecent', d.recent);
     fillUnits(d.units || []);
+    restoreNoteInputs(keepN);
     for (const c of d.active) {
       if (!seen.has(c.id)) {
         if (!firstLoad) {

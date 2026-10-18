@@ -18,6 +18,8 @@
       Say the response channel (Respond on Fire tac)</label>
     <label class="checkrow"><input type="checkbox" name="say_time" {% if fmt.say_time %}checked{% endif %}>
       Say the time of dispatch</label>
+    <label class="checkrow"><input type="checkbox" name="say_cross" {% if fmt.say_cross %}checked{% endif %}>
+      Say the cross streets (Address ... at Pepperell Pkwy)</label>
     <label class="checkrow"><input type="checkbox" name="dispatch_play_audio" {% if dplay %}checked{% endif %}>
       Play the page on this computer when a call is sent</label>
     <label class="checkrow">Spoken address:
@@ -26,6 +28,10 @@
         <option value="street_zip" {% if addr_fmt == 'street_zip' %}selected{% endif %}>Street and ZIP</option>
         <option value="full" {% if addr_fmt == 'full' %}selected{% endif %}>Full address (street, city, state, ZIP)</option>
       </select>
+    </label>
+    <label class="checkrow">Spoken voice name (blank = automatic, never Samantha):
+      <input type="text" name="speak_voice" value="{{ svoice }}" maxlength="60"
+             placeholder="e.g. Karen or Daniel">
     </label>
     <p><b>Sounds like:</b> "{{ example }}"</p>
     <button type="submit" class="primary">Save</button>

@@ -335,3 +335,23 @@ admins can open it, and each line links to the call it is about.
 - Spoken addresses spell out map abbreviations (Pkwy becomes Parkway, also Rd, Ave, Blvd, Dr, Ln,
   Ct, Cir, Hwy, St, Trail and directions), a bare house-number segment joins the street name, and
   "US" endings are dropped. Old recordings regenerate once on deploy (page_audio_ver 3).
+
+
+### Round 39
+- The backup device voice (used when a phone plays the recorded page itself, the Read buttons, and
+  the arm test) never uses the iPhone's Samantha voice anymore: the app picks another English voice
+  automatically. Settings has a "Spoken voice name" box to pin a specific one (e.g. Karen, Daniel).
+
+
+### Round 40
+- Units see the notes on their calls and can send notes back: each card on the unit phone lists the
+  notes with who wrote them and when, plus a "Note for dispatch..." box with a Send note button.
+  Dispatch sees the same notes on the board (new Notes column) and on the call page, and can add
+  notes right from the board row. Unit notes are saved with the unit's name as the author, and a
+  unit cannot add notes to a closed call.
+
+### Round 41
+- New Cross street field on the new call form. It shows on the dispatch board and unit cards
+  ("at Pepperell Pkwy") and the Read buttons include it. Settings has a "Say the cross streets"
+  checkbox (on by default): when on, the page voice says "Address: 2302 Waverly Parkway at
+  Pepperell Parkway"; when off, the cross street is not spoken.

@@ -1,4 +1,20 @@
 const $ = id => document.getElementById(id);
+let _VOICE = null;
+function pickVoice() {
+  try {
+    const vs = speechSynthesis.getVoices() || [];
+    if (!vs.length) return _VOICE;
+    if (SVOICE) {
+      const m = vs.find(v => (v.name || '').toLowerCase() == SVOICE.toLowerCase());
+      if (m) { _VOICE = m; return m; }
+    }
+    const good = vs.filter(v => (v.lang || '').toLowerCase().indexOf('en') == 0
+      && !/samantha/i.test(v.name));
+    _VOICE = good[0] || vs.find(v => !/samantha/i.test(v.name)) || null;
+    return _VOICE;
+  } catch (e) { return null; }
+}
+try { speechSynthesis.addEventListener('voiceschanged', pickVoice); } catch (e) {}
 
 function speak(text) {
   if (!('speechSynthesis' in window)) return;
@@ -6,6 +22,7 @@ function speak(text) {
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
     u.rate = 0.95;
+    u.voice = pickVoice();
     speechSynthesis.speak(u);
   } catch (e) {}
 }
@@ -17,7 +34,7 @@ function spAddr(a) {
 }
 
 $('readBtn').addEventListener('click', () => {
-  speak(`Type: ${CALL.call_type}. Address: ${spAddr(CALL.address)}. Nature: ${CALL.nature}.`
+  speak(`Type: ${CALL.call_type}. Address: ${spAddr(CALL.address)}${CALL.cross_street ? ' at ' + CALL.cross_street : ''}. Nature: ${CALL.nature}.`
     + (CALL.response_channel ? ` Respond on ${CALL.response_channel}.` : '')
     + ` Status: ${CALL.status}.`);
 });

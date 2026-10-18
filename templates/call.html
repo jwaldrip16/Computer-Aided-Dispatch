@@ -164,6 +164,7 @@
 <script>
 const PLAYPAGE = {{ (play or none)|tojson }};
 const DPLAY = {{ dplay|tojson }};
+const SVOICE = {{ svoice|tojson }};
 if (PLAYPAGE && DPLAY) { try { new Audio('/call-page/' + PLAYPAGE + '/audio').play().catch(function(){}); } catch (e) {} }
 const editAddr = document.getElementById('editAddress');
 let editLast = '{{ c.address|e }}';

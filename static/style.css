@@ -97,3 +97,8 @@ table.calls tr.flash, .card.flash { animation: flash 1.2s ease 5; }
 .ustat { font-weight: normal; opacity: .85; font-size: .85em; }
 
 .dutybtn { font-size: .8em; padding: 1px 8px; margin-left: 4px; }
+
+.notelist { margin-top: 6px; }
+.notelist p, .notelist div { margin: 3px 0; }
+.noterow { margin-top: 4px; }
+.noterow input { flex: 1; min-width: 160px; }

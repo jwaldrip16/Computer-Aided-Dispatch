@@ -171,6 +171,8 @@ def init_db():
             cur.execute("ALTER TABLE call_pages ADD COLUMN IF NOT EXISTS"
                         " audio BYTEA")
             cur.execute("ALTER TABLE calls ADD COLUMN IF NOT EXISTS apt TEXT")
+            cur.execute("ALTER TABLE calls ADD COLUMN IF NOT EXISTS"
+                        " cross_street TEXT")
             cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS"
                         " speech_name TEXT")
             cur.execute("SELECT count(*) AS n FROM sop_templates")
@@ -316,7 +318,8 @@ def board():
            one=True)
     return render_template("board.html", me=me, natures=NATURES,
                            alert_fmt=get_alert_format(),
-                           dplay=not dp or (dp["value"] or "") != "0")
+                           dplay=not dp or (dp["value"] or "") != "0",
+                           svoice=_speak_voice())
 
 
 @app.route("/api/board")
@@ -339,11 +342,16 @@ def api_board():
                  for r in units]
     resp = unit_responses([r["id"] for r in active])
     pids = _latest_page_ids([r["id"] for r in active])
+    nmap = _notes_for([r["id"] for r in active] + [r["id"] for r in pending]
+                      + [r["id"] for r in recent])
     return jsonify(active=[dict(call_dict(r), responses=resp.get(r["id"], []),
-                                page_id=pids.get(r["id"]))
+                                page_id=pids.get(r["id"]),
+                                notes=nmap.get(r["id"], []))
                            for r in active],
-                   pending=[call_dict(r) for r in pending],
-                   recent=[call_dict(r) for r in recent],
+                   pending=[dict(call_dict(r), notes=nmap.get(r["id"], []))
+                            for r in pending],
+                   recent=[dict(call_dict(r), notes=nmap.get(r["id"], []))
+                           for r in recent],
                    units=units_out)
 
 
@@ -358,6 +366,7 @@ def new_call():
         nature = (request.form.get("nature") or "").strip() or "not given"
         address = (request.form.get("address") or "").strip()
         apt = (request.form.get("apt") or "").strip()[:40] or None
+        cross = (request.form.get("cross_street") or "").strip()[:120] or None
         priority = request.form.get("priority") or "routine"
         if priority not in PRIORITIES:
             priority = "routine"
@@ -407,16 +416,17 @@ def new_call():
                                    error="")
         notify = request.form.get("notify") == "1"
         queue = request.form.get("queue") == "1"
-        vals = [ctype, nature, address, apt, priority,
+        vals = [ctype, nature, address, apt, cross, priority,
                 (request.form.get("caller_name") or "").strip() or None,
                 (request.form.get("caller_phone") or "").strip() or None,
                 (request.form.get("notes_in") or "").strip() or None,
                 me["username"], addr_lat, addr_lng, addr_formatted,
                 (request.form.get("response_channel") or "").strip() or None]
-        cid = q("INSERT INTO calls (call_type, nature, address, apt, priority,"
+        cid = q("INSERT INTO calls (call_type, nature, address, apt,"
+                " cross_street, priority,"
                 " caller_name, caller_phone, notes_in, dispatcher, lat, lng,"
                 " addr_formatted, response_channel, status, notified_at)"
-                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
+                " VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,"
                 + ("'pending'" if queue else "'open'") + ","
                 + ("now()" if notify and not queue else "NULL")
                 + ") RETURNING id",
@@ -517,6 +527,7 @@ def call_view(call_id):
            one=True)
     return render_template("call.html", me=me, came_in_str=came_in,
                            dplay=not dp or (dp["value"] or "") != "0",
+                           svoice=_speak_voice(),
                            play=request.args.get("play", type=int),
                            notified_str=notified, c=call_dict(c), notes=notes,
                            responses=responses, unit_users=unit_users,
@@ -556,7 +567,7 @@ def call_status(call_id):
 
 
 ALERT_KEYS = {"say_type": True, "say_address": True, "say_nature": True,
-              "say_channel": True, "say_time": True}
+              "say_channel": True, "say_time": True, "say_cross": True}
 TYPE_TITLES = {"police": "Police", "fire": "Fire", "medical": "Medical",
                "other": "Call",
                "accident": "Traffic accident w/ injuries"}
@@ -580,6 +591,10 @@ def alert_text(call, fmt):
             parts.append(TYPE_TITLES.get(call["call_type"], "Call") + " call")
     if fmt.get("say_address"):
         addr = _speech_addr(call.get("address"), _addr_fmt())
+        if fmt.get("say_cross") and (call.get("cross_street") or "").strip():
+            xing = _speech_addr(call["cross_street"].strip(), _addr_fmt())
+            if xing:
+                addr = (addr + " at " + xing) if addr else xing
         apt = _apt_speech(call.get("apt"))
         if apt:
             addr = (addr + ", " + apt) if addr else apt
@@ -595,6 +610,11 @@ def alert_text(call, fmt):
     return ". ".join(p for p in parts if p) + "."
 
 
+def _speak_voice():
+    row = q("SELECT value FROM settings WHERE key = 'speak_voice'", one=True)
+    return (row["value"] or "").strip() if row else ""
+
+
 @app.route("/settings", methods=["GET", "POST"])
 @admin_required
 def settings_page():
@@ -607,6 +627,9 @@ def settings_page():
         q("INSERT INTO settings (key, value) VALUES ('dispatch_play_audio', %s)"
           " ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
           ("1" if request.form.get("dispatch_play_audio") else "0",))
+        q("INSERT INTO settings (key, value) VALUES ('speak_voice', %s)"
+          " ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value",
+          ((request.form.get("speak_voice") or "").strip()[:60],))
         fmt_addr = request.form.get("alert_addr_fmt", "street")
         if fmt_addr in ("street", "street_zip", "full"):
             q("INSERT INTO settings (key, value) VALUES ('alert_addr_fmt', %s)"
@@ -625,7 +648,8 @@ def settings_page():
          "notified_at": None, "created_at": datetime.now()},
         fmt)
     return render_template("settings.html", me=me, fmt=fmt,
-                           addr_fmt=addr_fmt, example=example, dplay=dplay)
+                           addr_fmt=addr_fmt, example=example, dplay=dplay,
+                           svoice=_speak_voice())
 
 
 @app.route("/settings/reset-calls", methods=["POST"])
@@ -1198,6 +1222,10 @@ def page_speech_text(c, units=None):
             out = ("%s call. " % title) if ctype != "accident" else "%s. " % title
         if fmt.get("say_address"):
             addr = _speech_addr(c["address"], _addr_fmt())
+            if fmt.get("say_cross") and (c.get("cross_street") or "").strip():
+                xing = _speech_addr(c["cross_street"].strip(), _addr_fmt())
+                if xing:
+                    addr = (addr + " at " + xing) if addr else xing
             apt = _apt_speech(c.get("apt"))
             if apt:
                 addr = (addr + ", " + apt) if addr else apt
@@ -1409,6 +1437,23 @@ def call_note(call_id):
     return redirect(url_for("call_view", call_id=call_id))
 
 
+@app.route("/api/call/<int:call_id>/note", methods=["POST"])
+@login_required
+def api_call_note(call_id):
+    """A note on a call from the dispatch board or a unit phone."""
+    me = current_user()
+    c = _load_call(call_id)
+    text = (request.form.get("text") or "").strip()[:500]
+    if not text:
+        return jsonify(ok=False, error="Empty note."), 400
+    if me["role"] == "unit" and c["status"] not in ("open", "dispatched"):
+        return jsonify(ok=False, error="This call is closed."), 403
+    q("INSERT INTO call_notes (call_id, author, text) VALUES (%s,%s,%s)",
+      (call_id, me["username"], text))
+    log_audit(me["username"], "note_added", "call %s" % call_id)
+    return jsonify(ok=True)
+
+
 @app.route("/call/<int:call_id>/units", methods=["POST"])
 @staff_required
 def call_units(call_id):
@@ -1497,7 +1542,7 @@ def unit_home():
         return redirect(url_for("board"))
     types = [t for t in (me["unit_types"] or "").split(",") if t in CALL_TYPES]
     return render_template("unit.html", me=me, types=types,
-                           alert_fmt=get_alert_format())
+                           alert_fmt=get_alert_format(), svoice=_speak_voice())
 
 
 @app.route("/api/unit-board")
@@ -1523,22 +1568,41 @@ def api_unit_board():
     resp = unit_responses([r["id"] for r in active])
     pids = _latest_page_ids([r["id"] for r in active]
                             + [r["id"] for r in recent])
+    nmap = _notes_for([r["id"] for r in active] + [r["id"] for r in recent])
     active_out = []
     for r in active:
         d = call_dict(r)
         d["page_id"] = pids.get(r["id"])
         entries = resp.get(r["id"], [])
         d["responses"] = entries
+        d["notes"] = nmap.get(r["id"], [])
         for e in entries:
             if e["username"] == me["username"]:
                 d["my_status"] = e["status"]
         active_out.append(d)
     return jsonify(active=active_out,
-                   recent=[dict(call_dict(r), page_id=pids.get(r["id"]))
+                   recent=[dict(call_dict(r), page_id=pids.get(r["id"]),
+                                notes=nmap.get(r["id"], []))
                            for r in recent],
                    me_status=me["unit_status"] or "off_duty",
                    me_name=unit_speech_name(me["username"]),
                    no_types=not types)
+
+
+def _notes_for(call_ids):
+    """Notes grouped by call id, oldest first."""
+    if not call_ids:
+        return {}
+    ph = ",".join(["%s"] * len(call_ids))
+    rows = q("SELECT * FROM call_notes WHERE call_id IN (%s) ORDER BY id" % ph,
+             tuple(call_ids))
+    out = {}
+    for n in rows:
+        out.setdefault(n["call_id"], []).append(
+            {"author": n["author"], "text": n["text"],
+             "created_at": n["created_at"].isoformat() if n["created_at"]
+             else None})
+    return out
 
 
 UNIT_CALL_STATUSES = ("enroute", "on_scene", "transporting", "clear")

@@ -26,6 +26,7 @@
 <p id="noActive" class="muted hidden">No active calls right now.</p>
 <h2>Recently closed</h2>
 <ul class="notes" id="recentList"></ul>
-<script>const FMT = {{ alert_fmt|tojson }};</script>
+<script>const FMT = {{ alert_fmt|tojson }};
+const SVOICE = {{ svoice|tojson }};</script>
 <script src="{{ url_for('static', filename='unit.js') }}"></script>
 {% endblock %}
