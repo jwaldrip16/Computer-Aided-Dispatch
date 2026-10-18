@@ -360,4 +360,5 @@ admins can open it, and each line links to the call it is about.
 - The "robot" voice on unit phones was the phone's own backup voice, not the page: iPhones refuse to start sound on their own until the screen is touched once, so the automatic page fell back to the phone's built-in voice. The unit page now unlocks its sound on the first tap (it shows a small yellow "Tap the screen once" bar until then), and pages then play the page recording itself: the same tone and voice the dispatcher and the recording have.
 - The page audio element is now shared and reused for every page instead of being rebuilt, which keeps the unlock.
 - The backup voice (used only if a recording truly cannot play) now prefers normal English voices in this order: Karen, Moira, Tessa, Nicky, Catherine, Serena, Fiona, Victoria, Google US English, Google UK English Female; Samantha and Fred are never used. Settings > Spoken voice name still overrides all of this.
+- Round 42a (same day, user request): on the unit page the backup voice is Samantha again; the preference list only runs if the device has no Samantha. Fred is still skipped.
 - static/silence.wav added (the silent unlock file).

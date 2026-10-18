@@ -28,8 +28,13 @@ function pickVoice() {
       const m = vs.find(v => low(v.name) == low(SVOICE));
       if (m) { _VOICE = m; return m; }
     }
-    const en = vs.filter(v => low(v.lang).indexOf('en') == 0
-      && !/samantha|fred/i.test(v.name));
+    // On the unit phone the backup voice is Samantha again (the user asked
+    // for her back on 2026-10-17); the prefs list below only runs if the
+    // device has no Samantha.
+    const enAll = vs.filter(v => low(v.lang).indexOf('en') == 0);
+    const sam = enAll.find(v => /samantha/i.test(v.name));
+    if (sam) { _VOICE = sam; return sam; }
+    const en = enAll.filter(v => !/fred/i.test(v.name));
     for (let i = 0; i < VOICE_PREFS.length; i++) {
       const m = en.find(v => low(v.name).indexOf(low(VOICE_PREFS[i])) == 0);
       if (m) { _VOICE = m; return m; }
