@@ -1424,6 +1424,23 @@ def page_audio(page_id):
     return Response(rows[0]["audio"], mimetype="audio/mpeg")
 
 
+@app.route("/tone-audio/<ctype>/<int:em>")
+@login_required
+def tone_audio(ctype, em):
+    """The alert tone on its own as an MP3, for phones that cannot use the
+    browser's beep maker. The unit page's fallback path plays this through
+    the same unlocked audio element as the page recording."""
+    ctype = (ctype or "other").strip().lower()
+    if ctype not in ("police", "fire", "medical", "accident", "other"):
+        ctype = "other"
+    data = _tone_mp3(ctype, bool(em))
+    if not data:
+        abort(404)
+    resp = Response(data, mimetype="audio/mpeg")
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
+
+
 @app.route("/call/<int:call_id>/note", methods=["POST"])
 @staff_required
 def call_note(call_id):

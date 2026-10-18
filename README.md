@@ -362,3 +362,10 @@ admins can open it, and each line links to the call it is about.
 - The backup voice (used only if a recording truly cannot play) now prefers normal English voices in this order: Karen, Moira, Tessa, Nicky, Catherine, Serena, Fiona, Victoria, Google US English, Google UK English Female; Samantha and Fred are never used. Settings > Spoken voice name still overrides all of this.
 - Round 42a (same day, user request): on the unit page the backup voice is Samantha again; the preference list only runs if the device has no Samantha. Fred is still skipped.
 - static/silence.wav added (the silent unlock file).
+
+
+## Round 43 (2026-10-17, one voice for all dispatches)
+- The unit phone now tries the page recording three times (3.5 s watchdog each, 500 ms apart) before its own backup tone and voice take over, so a slow load no longer triggers the different backup voice.
+- The fallback tone is now a sound file from the server (GET /tone-audio/<call_type>/<0|1>, MP3 built by _tone_mp3) played through the same unlocked page audio element, so the tone no longer depends on the phone's beep maker being awake. The WebAudio beeps stay as the second choice.
+- The first tap on the unit page also wakes the phone's beep maker (AudioContext created or resumed inside the gesture), not just the page audio element.
+- One voice everywhere: every device plays the same page recording; the phone's own voice is only an emergency backup when the recording truly cannot play.

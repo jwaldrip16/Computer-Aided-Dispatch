@@ -70,6 +70,13 @@ function unlockAudio() {
       u.volume = 0;
       speechSynthesis.speak(u);
     } catch (e2) {}
+    // The tap also wakes the phone's beep maker, so tones can play.
+    try {
+      if (!AC || AC.state == 'suspended') {
+        if (!AC) AC = new (window.AudioContext || window.webkitAudioContext)();
+        if (AC.resume) { try { AC.resume(); } catch (e3) {} }
+      }
+    } catch (e4) {}
   } catch (e) {}
 }
 ['touchend', 'click'].forEach(ev => document.addEventListener(ev, unlockAudio, { passive: true }));
@@ -174,12 +181,17 @@ function stopPageAudio() {
   }
 }
 
-function playRecording(c, onFail) {
+function playRecording(c, onFail, tries) {
+  tries = tries || 0;
   // The recorded page IS the page the dispatcher sent: the same tone and
   // the same voice, so the phone plays exactly what the recording holds.
-  // If the recording cannot start (blocked autoplay, a bad file), fall
-  // back to the phone's own tone and voice.
+  // If it cannot start (blocked autoplay, a slow load) it is tried three
+  // times before the phone's own tone and voice take over.
   if (!c || !c.page_id) { onFail(); return; }
+  const retry = () => {
+    if (tries < 2) { setTimeout(() => { playRecording(c, onFail, tries + 1); }, 500); }
+    else { onFail(); }
+  };
   try {
     if (!PAGE_AUDIO) PAGE_AUDIO = new Audio();
     const a = PAGE_AUDIO;
@@ -189,7 +201,7 @@ function playRecording(c, onFail) {
       if (started || failed) return;
       failed = true;
       stopPageAudio();
-      onFail();
+      retry();
     };
     a.onplaying = () => { started = true; hideSoundNote(); };
     a.onerror = () => { if (!started) fail(); };
@@ -199,10 +211,10 @@ function playRecording(c, onFail) {
       ALERTING = false;
       playNext();
     };
-    setTimeout(fail, 1500);
+    setTimeout(fail, 3500);
     const p = a.play();
     if (p && p.catch) p.catch(() => fail());
-  } catch (e) { PAGE_AUDIO = null; onFail(); }
+  } catch (e) { PAGE_AUDIO = null; retry(); }
 }
 
 function stopAlert(keepQueue) {
@@ -243,22 +255,49 @@ function alertCall(c) {
   stopAlert(true);
   ALERTING = true;
   $('silenceBtn').disabled = false;
-  playRecording(c, () => {
-    const secs = toneFor(c.call_type, c.priority === 'emergency');
-    if (secs) {
+  playRecording(c, () => toneAudioFallback(c));
+}
+
+function toneAudioFallback(c) {
+  // The tone as a sound file through the same unlocked page element, so the
+  // tone does not depend on the phone's beep maker being awake.
+  try {
+    if (!PAGE_AUDIO) PAGE_AUDIO = new Audio();
+    const a = PAGE_AUDIO;
+    const em = c.priority === 'emergency' ? 1 : 0;
+    a.src = '/tone-audio/' + encodeURIComponent(c.call_type || 'other') + '/' + em;
+    a.onplaying = () => { hideSoundNote(); };
+    a.onended = () => {
+      try { a.onended = null; a.onerror = null; } catch (e) {}
       VOICE_T = setTimeout(() => {
         speakAlert(c, () => {
           $('silenceBtn').disabled = true;
           ALERTING = false;
           playNext();
         });
-      }, secs * 1000);
-    } else {
-      $('silenceBtn').disabled = true;
-      ALERTING = false;
-      playNext();
-    }
-  });
+      }, 200);
+    };
+    a.onerror = () => { try { a.onerror = null; a.onended = null; } catch (e) {} webAudioFallback(c); };
+    const p = a.play();
+    if (p && p.catch) p.catch(() => { try { a.onerror = null; a.onended = null; } catch (e) {} webAudioFallback(c); });
+  } catch (e) { webAudioFallback(c); }
+}
+
+function webAudioFallback(c) {
+  const secs = toneFor(c.call_type, c.priority === 'emergency');
+  if (secs) {
+    VOICE_T = setTimeout(() => {
+      speakAlert(c, () => {
+        $('silenceBtn').disabled = true;
+        ALERTING = false;
+        playNext();
+      });
+    }, secs * 1000);
+  } else {
+    $('silenceBtn').disabled = true;
+    ALERTING = false;
+    playNext();
+  }
 }
 
 function nowTime() {
