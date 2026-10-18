@@ -355,3 +355,9 @@ admins can open it, and each line links to the call it is about.
   ("at Pepperell Pkwy") and the Read buttons include it. Settings has a "Say the cross streets"
   checkbox (on by default): when on, the page voice says "Address: 2302 Waverly Parkway at
   Pepperell Parkway"; when off, the cross street is not spoken.
+
+### Round 42 (Oct 17, 2026): unit phones unlock their own sound; better backup voice
+- The "robot" voice on unit phones was the phone's own backup voice, not the page: iPhones refuse to start sound on their own until the screen is touched once, so the automatic page fell back to the phone's built-in voice. The unit page now unlocks its sound on the first tap (it shows a small yellow "Tap the screen once" bar until then), and pages then play the page recording itself: the same tone and voice the dispatcher and the recording have.
+- The page audio element is now shared and reused for every page instead of being rebuilt, which keeps the unlock.
+- The backup voice (used only if a recording truly cannot play) now prefers normal English voices in this order: Karen, Moira, Tessa, Nicky, Catherine, Serena, Fiona, Victoria, Google US English, Google UK English Female; Samantha and Fred are never used. Settings > Spoken voice name still overrides all of this.
+- static/silence.wav added (the silent unlock file).

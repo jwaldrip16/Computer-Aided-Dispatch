@@ -1,4 +1,4 @@
-let ARMED = false, AC = null, OSC = [], VOICE_T = null, PAGE_AUDIO = null;
+let ARMED = false, AC = null, OSC = [], VOICE_T = null, PAGE_AUDIO = null, AUDIO_READY = false;
 let ME_NAME = '';
 let PAGE_QUEUE = [];
 let ON_DUTY = false, WATCH = null, WATCH_HIGH = false, LAST_PING = 0;
@@ -18,21 +18,57 @@ function spAddr(a) {
 }
 
 let _VOICE = null;
+const VOICE_PREFS = ['Karen', 'Moira', 'Tessa', 'Nicky', 'Catherine', 'Serena', 'Fiona', 'Victoria', 'Google US English', 'Google UK English Female'];
 function pickVoice() {
   try {
     const vs = speechSynthesis.getVoices() || [];
     if (!vs.length) return _VOICE;
+    const low = n => (n || '').toLowerCase();
     if (SVOICE) {
-      const m = vs.find(v => (v.name || '').toLowerCase() == SVOICE.toLowerCase());
+      const m = vs.find(v => low(v.name) == low(SVOICE));
       if (m) { _VOICE = m; return m; }
     }
-    const good = vs.filter(v => (v.lang || '').toLowerCase().indexOf('en') == 0
-      && !/samantha/i.test(v.name));
-    _VOICE = good[0] || vs.find(v => !/samantha/i.test(v.name)) || null;
+    const en = vs.filter(v => low(v.lang).indexOf('en') == 0
+      && !/samantha|fred/i.test(v.name));
+    for (let i = 0; i < VOICE_PREFS.length; i++) {
+      const m = en.find(v => low(v.name).indexOf(low(VOICE_PREFS[i])) == 0);
+      if (m) { _VOICE = m; return m; }
+    }
+    const g = en.find(v => /female|google/i.test(low(v.name)));
+    if (g) { _VOICE = g; return g; }
+    _VOICE = en[0] || vs.find(v => !/samantha/i.test(v.name)) || null;
     return _VOICE;
   } catch (e) { return null; }
 }
 try { speechSynthesis.addEventListener('voiceschanged', pickVoice); } catch (e) {}
+
+// iPhones block sound that starts by itself until the screen is touched once.
+// The first tap plays a silent file through the shared page audio element,
+// which unlocks it so the next page's recording can start on its own.
+let _soundNote = null;
+function hideSoundNote() { if (_soundNote) { try { _soundNote.remove(); } catch (e) {} _soundNote = null; } }
+function showSoundNote() {
+  if (_soundNote || AUDIO_READY) return;
+  _soundNote = document.createElement('div');
+  _soundNote.textContent = 'Tap the screen once so pages can play their sound.';
+  _soundNote.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:60;background:#fff3cd;color:#5c4400;padding:8px 12px;font-size:13px;text-align:center;border-top:1px solid #e6d68a;';
+  document.body.appendChild(_soundNote);
+}
+function unlockAudio() {
+  if (AUDIO_READY || ALERTING) return;
+  try {
+    if (!PAGE_AUDIO) PAGE_AUDIO = new Audio('/static/silence.wav');
+    const p = PAGE_AUDIO.play();
+    if (p && p.then) p.then(() => { AUDIO_READY = true; hideSoundNote(); }).catch(() => {});
+    try {
+      const u = new SpeechSynthesisUtterance(' ');
+      u.volume = 0;
+      speechSynthesis.speak(u);
+    } catch (e2) {}
+  } catch (e) {}
+}
+['touchend', 'click'].forEach(ev => document.addEventListener(ev, unlockAudio, { passive: true }));
+setTimeout(showSoundNote, 1200);
 
 function speakMany(texts, onDone) {
   if (!('speechSynthesis' in window)) { if (onDone) setTimeout(onDone, 800); return; }
@@ -130,7 +166,6 @@ function toneFor(ctype, emergency) {
 function stopPageAudio() {
   if (PAGE_AUDIO) {
     try { PAGE_AUDIO.onended = null; PAGE_AUDIO.onerror = null; PAGE_AUDIO.pause(); } catch (e) {}
-    PAGE_AUDIO = null;
   }
 }
 
@@ -141,8 +176,9 @@ function playRecording(c, onFail) {
   // back to the phone's own tone and voice.
   if (!c || !c.page_id) { onFail(); return; }
   try {
-    const a = new Audio('/call-page/' + c.page_id + '/audio');
-    PAGE_AUDIO = a;
+    if (!PAGE_AUDIO) PAGE_AUDIO = new Audio();
+    const a = PAGE_AUDIO;
+    a.src = '/call-page/' + c.page_id + '/audio';
     let started = false, failed = false;
     const fail = () => {
       if (started || failed) return;
@@ -150,10 +186,10 @@ function playRecording(c, onFail) {
       stopPageAudio();
       onFail();
     };
-    a.onplaying = () => { started = true; };
+    a.onplaying = () => { started = true; hideSoundNote(); };
     a.onerror = () => { if (!started) fail(); };
     a.onended = () => {
-      PAGE_AUDIO = null;
+      try { a.onended = null; } catch (e) {}
       $('silenceBtn').disabled = true;
       ALERTING = false;
       playNext();

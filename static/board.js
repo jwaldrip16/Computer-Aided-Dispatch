@@ -3,17 +3,25 @@ const seen = new Set();
 let firstLoad = true;
 const $ = id => document.getElementById(id);
 let _VOICE = null;
+const VOICE_PREFS = ['Karen', 'Moira', 'Tessa', 'Nicky', 'Catherine', 'Serena', 'Fiona', 'Victoria', 'Google US English', 'Google UK English Female'];
 function pickVoice() {
   try {
     const vs = speechSynthesis.getVoices() || [];
     if (!vs.length) return _VOICE;
+    const low = n => (n || '').toLowerCase();
     if (SVOICE) {
-      const m = vs.find(v => (v.name || '').toLowerCase() == SVOICE.toLowerCase());
+      const m = vs.find(v => low(v.name) == low(SVOICE));
       if (m) { _VOICE = m; return m; }
     }
-    const good = vs.filter(v => (v.lang || '').toLowerCase().indexOf('en') == 0
-      && !/samantha/i.test(v.name));
-    _VOICE = good[0] || vs.find(v => !/samantha/i.test(v.name)) || null;
+    const en = vs.filter(v => low(v.lang).indexOf('en') == 0
+      && !/samantha|fred/i.test(v.name));
+    for (let i = 0; i < VOICE_PREFS.length; i++) {
+      const m = en.find(v => low(v.name).indexOf(low(VOICE_PREFS[i])) == 0);
+      if (m) { _VOICE = m; return m; }
+    }
+    const g = en.find(v => /female|google/i.test(low(v.name)));
+    if (g) { _VOICE = g; return g; }
+    _VOICE = en[0] || vs.find(v => !/samantha/i.test(v.name)) || null;
     return _VOICE;
   } catch (e) { return null; }
 }
