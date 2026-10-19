@@ -50,21 +50,12 @@ try { speechSynthesis.addEventListener('voiceschanged', pickVoice); } catch (e) 
 // iPhones block sound that starts by itself until the screen is touched once.
 // The first tap plays a silent file through the shared page audio element,
 // which unlocks it so the next page's recording can start on its own.
-let _soundNote = null;
-function hideSoundNote() { if (_soundNote) { try { _soundNote.remove(); } catch (e) {} _soundNote = null; } }
-function showSoundNote() {
-  if (_soundNote || AUDIO_READY) return;
-  _soundNote = document.createElement('div');
-  _soundNote.textContent = 'Tap the screen once so pages can play their sound.';
-  _soundNote.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:60;background:#fff3cd;color:#5c4400;padding:8px 12px;font-size:13px;text-align:center;border-top:1px solid #e6d68a;';
-  document.body.appendChild(_soundNote);
-}
 function unlockAudio() {
   if (AUDIO_READY || ALERTING) return;
   try {
     if (!PAGE_AUDIO) PAGE_AUDIO = new Audio('/static/silence.wav');
     const p = PAGE_AUDIO.play();
-    if (p && p.then) p.then(() => { AUDIO_READY = true; hideSoundNote(); }).catch(() => {});
+    if (p && p.then) p.then(() => { AUDIO_READY = true; }).catch(() => {});
     try {
       const u = new SpeechSynthesisUtterance(' ');
       u.volume = 0;
@@ -80,7 +71,17 @@ function unlockAudio() {
   } catch (e) {}
 }
 ['touchend', 'click'].forEach(ev => document.addEventListener(ev, unlockAudio, { passive: true }));
-setTimeout(showSoundNote, 1200);
+// Keep the screen on while the unit page is open, where the browser allows it.
+let WAKE_LOCK = null;
+function keepAwake() {
+  try {
+    if (!('wakeLock' in navigator) || document.visibilityState != 'visible') return;
+    if (WAKE_LOCK && !WAKE_LOCK.released) return;
+    navigator.wakeLock.request('screen').then(function (l) { WAKE_LOCK = l; }).catch(function () {});
+  } catch (e) {}
+}
+document.addEventListener('visibilitychange', keepAwake);
+keepAwake();
 
 function speakMany(texts, onDone) {
   if (!('speechSynthesis' in window)) { if (onDone) setTimeout(onDone, 800); return; }
@@ -203,7 +204,7 @@ function playRecording(c, onFail, tries) {
       stopPageAudio();
       retry();
     };
-    a.onplaying = () => { started = true; hideSoundNote(); };
+    a.onplaying = () => { started = true; };
     a.onerror = () => { if (!started) fail(); };
     a.onended = () => {
       try { a.onended = null; } catch (e) {}
@@ -266,7 +267,6 @@ function toneAudioFallback(c) {
     const a = PAGE_AUDIO;
     const em = c.priority === 'emergency' ? 1 : 0;
     a.src = '/tone-audio/' + encodeURIComponent(c.call_type || 'other') + '/' + em;
-    a.onplaying = () => { hideSoundNote(); };
     a.onended = () => {
       try { a.onended = null; a.onerror = null; } catch (e) {}
       VOICE_T = setTimeout(() => {
